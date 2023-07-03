@@ -1,0 +1,89 @@
+# pylint: disable=missing-function-docstring, missing-class-docstring
+import unittest
+import networkx as nx
+from temp_nestmodel.t_fast_graph import TempFastGraph
+from numpy.testing import assert_array_equal
+import numpy as np
+import os
+
+
+
+
+
+
+class TestTFastGraph(unittest.TestCase):
+    def test_edges(self):
+        edges = np.array([[0,1]], dtype=np.uint32)
+        G = TempFastGraph([edges.copy(), edges.copy()], is_directed=True)
+        assert_array_equal(edges, G.slices[0].edges)
+        assert_array_equal(edges, G.slices[1].edges)
+
+    def test_num_nodes(self):
+        edges1 = np.array([[0,1]], dtype=np.uint32)
+        edges2 = np.array([[2,3]], dtype=np.uint32)
+        G = TempFastGraph([edges1.copy(), edges2.copy()], is_directed=True)
+        assert_array_equal(edges1, G.slices[0].edges)
+        assert_array_equal(edges2, G.slices[1].edges)
+        self.assertEqual(G.num_nodes, 4)
+
+    def test_num_nodes2(self):
+        edges0 = np.array([[0,1]], dtype=np.uint32)
+        edges1 = np.array([[1,2]], dtype=np.uint32)
+        G = TempFastGraph([edges0.copy(), edges1.copy()], is_directed=True)
+        assert_array_equal(edges0, G.slices[0].edges)
+        assert_array_equal(edges1, G.slices[1].edges)
+        self.assertEqual(G.num_nodes, 3)
+
+    def test_no_empty_time(self):
+        edges0 = np.array([[0,1]], dtype=np.uint32)
+        edges1 = np.empty((0,2), dtype=np.uint32)
+        edges2 = np.array([[1,2]], dtype=np.uint32)
+        with self.assertRaises(AssertionError):
+            G = TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
+
+    def test_big_graph_1(self):
+        edges0 = np.array([[0,1]], dtype=np.uint32)
+        edges1 = np.array([[1,2]], dtype=np.uint32)
+        G_t = TempFastGraph([edges0.copy(), edges1.copy()], is_directed=True)
+        G = G_t.get_causal_completion()
+        self.assertEqual(G.num_nodes, 6)
+        edges = np.array([[0,1], [1, 5], [4,5]], dtype=np.uint32)
+        assert_array_equal(edges, G.edges)
+
+
+    def test_big_graph_2(self):
+        edges0 = np.array([[0,1]], dtype=np.uint32)
+        edges1 = np.array([[1,2]], dtype=np.uint32)
+        edges2 = np.array([[1,2]], dtype=np.uint32)
+        G_t = TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
+        G = G_t.get_causal_completion()
+        self.assertEqual(G.num_nodes, 9)
+        edges = np.array([[0,1], [1, 5], [1,8], [4, 5], [4,8], [7,8]], dtype=np.uint32)
+        assert_array_equal(edges, G.edges)
+
+
+
+    def test_big_graph_3(self):
+        edges0 = np.array([[0,1], [1,2]], dtype=np.uint32)
+        edges1 = np.array([[1,2]], dtype=np.uint32)
+        edges2 = np.array([[0, 1], [1,2]], dtype=np.uint32)
+        G_t = TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
+        G = G_t.get_causal_completion()
+        self.assertEqual(G.num_nodes, 9)
+        edges = np.array([[0, 1], [1, 2], [1, 5], [0,7], [1,8], [4, 5],[3,7], [4,8], [6,7], [7,8]], dtype=np.uint32)
+        assert_array_equal(edges, G.edges)
+
+
+    def test_big_graph_undir_1(self):
+        edges0 = np.array([[0,1], [1,2]], dtype=np.uint32)
+        edges1 = np.array([[1,2]], dtype=np.uint32)
+        G_t = TempFastGraph([edges0.copy(), edges1.copy()], is_directed=False)
+        G = G_t.get_causal_completion()
+        self.assertEqual(G.num_nodes, 6)
+        self.assertEqual(G.is_directed, True)
+        edges = np.array([[0, 1], [1, 2], [1,0], [2,1], [1,5], [2,4], [4,5], [5,4]], dtype=np.uint32)
+        assert_array_equal(edges, G.edges)
+
+
+if __name__ == '__main__':
+    unittest.main()
