@@ -1,10 +1,10 @@
 # pylint: disable=missing-function-docstring, missing-class-docstring
 import unittest
-import networkx as nx
-from temp_nestmodel.t_fast_graph import TempFastGraph
-from numpy.testing import assert_array_equal
 import numpy as np
-import os
+from numpy.testing import assert_array_equal
+import networkx as nx
+from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
+
 
 
 
@@ -12,6 +12,22 @@ import os
 
 
 class TestTFastGraph(unittest.TestCase):
+    def temp_fast_graph_test(self, l_edges, num_nodes, result_edges, is_directed):
+        l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
+        result_edges = np.array(result_edges, dtype=np.uint32)
+        G_t = TempFastGraph(l_edges, is_directed=is_directed)
+        G = G_t.get_causal_completion()
+        self.assertEqual(G.num_nodes, num_nodes)
+        assert_array_equal(result_edges, G.edges)
+
+    def sparse_temp_fast_graph_test(self, l_edges, num_nodes, result_edges, is_directed):
+        l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
+        result_edges = np.array(result_edges, dtype=np.uint32)
+        G_t = SparseTempFastGraph(l_edges, is_directed=is_directed)
+        G = G_t.get_sparse_causal_completion()
+        self.assertEqual(G.num_nodes, num_nodes)
+        assert_array_equal(result_edges, G.edges)
+
     def test_edges(self):
         edges = np.array([[0,1]], dtype=np.uint32)
         G = TempFastGraph([edges.copy(), edges.copy()], is_directed=True)
@@ -39,51 +55,84 @@ class TestTFastGraph(unittest.TestCase):
         edges1 = np.empty((0,2), dtype=np.uint32)
         edges2 = np.array([[1,2]], dtype=np.uint32)
         with self.assertRaises(AssertionError):
-            G = TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
+            TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
 
     def test_big_graph_1(self):
-        edges0 = np.array([[0,1]], dtype=np.uint32)
-        edges1 = np.array([[1,2]], dtype=np.uint32)
-        G_t = TempFastGraph([edges0.copy(), edges1.copy()], is_directed=True)
-        G = G_t.get_causal_completion()
-        self.assertEqual(G.num_nodes, 6)
-        edges = np.array([[0,1], [1, 5], [4,5]], dtype=np.uint32)
-        assert_array_equal(edges, G.edges)
+        self.temp_fast_graph_test([[[0,1]],
+                                   [[1,2]]],
+                                  6,
+                                  [[0,1], [1, 5], [4,5]],
+                                  is_directed = True
+                                  )
 
 
     def test_big_graph_2(self):
-        edges0 = np.array([[0,1]], dtype=np.uint32)
-        edges1 = np.array([[1,2]], dtype=np.uint32)
-        edges2 = np.array([[1,2]], dtype=np.uint32)
-        G_t = TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
-        G = G_t.get_causal_completion()
-        self.assertEqual(G.num_nodes, 9)
-        edges = np.array([[0,1], [1, 5], [1,8], [4, 5], [4,8], [7,8]], dtype=np.uint32)
-        assert_array_equal(edges, G.edges)
-
+        self.temp_fast_graph_test([[[0,1]],
+                                   [[1,2]],
+                                   [[1,2]]],
+                                  9,
+                                  [[0,1], [1, 5], [1,8], [4, 5], [4,8], [7,8]],
+                                  is_directed = True
+                                  )
 
 
     def test_big_graph_3(self):
-        edges0 = np.array([[0,1], [1,2]], dtype=np.uint32)
-        edges1 = np.array([[1,2]], dtype=np.uint32)
-        edges2 = np.array([[0, 1], [1,2]], dtype=np.uint32)
-        G_t = TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
-        G = G_t.get_causal_completion()
-        self.assertEqual(G.num_nodes, 9)
-        edges = np.array([[0, 1], [1, 2], [1, 5], [0,7], [1,8], [4, 5],[3,7], [4,8], [6,7], [7,8]], dtype=np.uint32)
-        assert_array_equal(edges, G.edges)
+        self.temp_fast_graph_test([[[0,1], [1,2]],
+                                   [[1,2]],
+                                   [[0,1], [1,2]]],
+                                  9,
+                                  [[0, 1], [1, 2], [1, 5], [0,7], [1,8], [4, 5],[3,7], [4,8], [6,7], [7,8]],
+                                  is_directed = True
+                                  )
 
 
     def test_big_graph_undir_1(self):
-        edges0 = np.array([[0,1], [1,2]], dtype=np.uint32)
-        edges1 = np.array([[1,2]], dtype=np.uint32)
-        G_t = TempFastGraph([edges0.copy(), edges1.copy()], is_directed=False)
-        G = G_t.get_causal_completion()
-        self.assertEqual(G.num_nodes, 6)
-        self.assertEqual(G.is_directed, True)
-        edges = np.array([[0, 1], [1, 2], [1,0], [2,1], [1,5], [2,4], [4,5], [5,4]], dtype=np.uint32)
-        assert_array_equal(edges, G.edges)
+        self.temp_fast_graph_test([[[0,1], [1,2]],
+                                   [[1,2]]],
+                                  6,
+                                  [[0, 1], [1, 2], [1,0], [2,1], [1,5], [2,4], [4,5], [5,4]],
+                                  is_directed = False
+                                  )
 
+
+
+    ###### SPARSE BELOW #####
+    def test_sparse_big_graph_1(self):
+        self.sparse_temp_fast_graph_test([[[0,1]],
+                                   [[1,2]]],
+                                  4,
+                                  [[0,1], [2, 3]],
+                                  is_directed = True
+                                  )
+
+
+    def test_sparse_big_graph_2(self):
+        self.sparse_temp_fast_graph_test([[[0,1]],
+                                   [[1,2]],
+                                   [[1,2]]],
+                                  6,
+                                  [[0,1], [2, 3], [2,5], [4, 5]],
+                                  is_directed = True
+                                  )
+
+
+    def test_sparse_big_graph_3(self):
+        self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
+                                   [[1,2]],
+                                   [[0,1], [1,2]]],
+                                  8,
+                                  [[0, 1], [0, 6], [1, 2], [1,4], [1,7], [3, 4],[3,7], [5,6], [6,7]],
+                                  is_directed = True
+                                  )
+
+
+    def test_sparse_big_graph_undir_1(self):
+        self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
+                                   [[1,2]]],
+                                  5,
+                                  [[0, 1], [1, 0], [1,2], [1,4], [2,1], [2,3], [3,4], [4,3]],
+                                  is_directed = False
+                                  )
 
 if __name__ == '__main__':
     unittest.main()
