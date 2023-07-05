@@ -4,7 +4,6 @@ def draw_networkx_causal(G, num_nodes, ):
     """Creates a plot of the causal graph G"""
     if hasattr(G, 'identifiers'):
         pos = {i : G.identifiers[i,:] for i in range(len(G.identifiers))}
-        print(pos, G.to_nx().nodes)
     else:
         pos = {i : divmod(i, num_nodes) for i in range(G.num_nodes)}
     G_nx = G.to_nx()
@@ -17,7 +16,7 @@ def draw_networkx_causal(G, num_nodes, ):
             between_time_edges.append((u,v))
 
     nx.draw_networkx_nodes(G_nx, pos)
-    nx.draw_networkx_edges(
+    nx.draw_networkx_edges( # From https://stackoverflow.com/questions/52588453/creating-curved-edges-with-networkx-in-python3
         G_nx, pos, edgelist=in_time_edges,
         connectionstyle="arc3,rad=0.2"  # <-- THIS IS IT
     )
@@ -32,10 +31,8 @@ def draw_networkx_temp(G_t):
         G_nx = G.to_nx()
         pos = {i : (t, i) for i in G_nx.nodes}
 
-        print(G_nx.nodes())
-        print(pos)
         nx.draw_networkx_nodes(G_nx, pos)
-        nx.draw_networkx_edges(
+        nx.draw_networkx_edges( # From https://stackoverflow.com/questions/52588453/creating-curved-edges-with-networkx-in-python3
             G_nx, pos,
             connectionstyle="arc3,rad=0.2"  # <-- THIS IS IT
         )

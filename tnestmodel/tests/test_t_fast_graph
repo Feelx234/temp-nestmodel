@@ -2,7 +2,6 @@
 import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
-import networkx as nx
 from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
 
 

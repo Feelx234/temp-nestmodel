@@ -55,7 +55,9 @@ def relabel_edges(edges):
 
 
 def apply_mapping_to_edges(edges, mapping):
-    """relabels nodes such that they start from 0 consecutively"""
+    """Returns relabeled edges
+    The edges are modified such that each node is replaced with its mapped counterpart
+    """
     out_edges = np.empty_like(edges)
     for i,(e1,e2) in enumerate(edges):
         out_edges[i,0] = mapping[e1]
@@ -63,7 +65,7 @@ def apply_mapping_to_edges(edges, mapping):
     return out_edges
 
 
-def to_mapping(values, mapping):
+def to_mapping(values, mapping): #pylint: disable=missing-function-docstring
     return {key : values[val] for key, val in mapping.items()}
 
 
@@ -142,7 +144,7 @@ class SparseTempFastGraph():
             because nodes that are guaranteed to be structurally identical were removed.
             The identity of node i of G is stored in G.indentifiers[i] = (t, u)
         """
-        in_degree, out_degree = get_total_degree([G.raw_edges for G in self.slices], self.is_directed, self.num_nodes)
+        _, out_degree = get_total_degree([G.raw_edges for G in self.slices], self.is_directed, self.num_nodes)
         list_successors = [np.empty(out_deg, dtype=np.int32) for out_deg in out_degree]
         num_successors = np.zeros(self.num_nodes, dtype=np.int32)
         num_prev_nodes = np.cumsum([0]+[G.num_nodes for G in self.slices])
