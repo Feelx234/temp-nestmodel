@@ -1,6 +1,6 @@
 import networkx as nx
 
-def draw_networkx_causal(G, num_nodes, ):
+def draw_networkx_causal(G, num_nodes, labels=False):
     """Creates a plot of the causal graph G"""
     if hasattr(G, 'identifiers'):
         pos = {i : G.identifiers[i,:] for i in range(len(G.identifiers))}
@@ -23,6 +23,8 @@ def draw_networkx_causal(G, num_nodes, ):
     nx.draw_networkx_edges(
         G_nx, pos, edgelist=between_time_edges, edge_color="gray"
     )
+    if labels is True:
+        nx.draw_networkx_labels(G_nx, pos, font_size=22, font_color="whitesmoke")
 
 
 def draw_networkx_temp(G_t):
