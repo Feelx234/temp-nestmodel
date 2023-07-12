@@ -42,6 +42,7 @@ class TempFastGraph():
             all_edges.append(new_edges)
         all_edges = np.vstack(list(reversed(all_edges)))
         G = FastGraph(all_edges, is_directed=True, num_nodes=T*self.num_nodes)
+        G.num_nodes_per_time = self.num_nodes
         if return_temporal_info:
             return G, (self.num_nodes, T)
         else:
