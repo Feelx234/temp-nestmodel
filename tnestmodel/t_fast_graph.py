@@ -149,12 +149,12 @@ def get_total_degree(l_edges, is_directed, num_nodes):
 def get_visible_nodes_per_time(slices, is_directed, num_nodes):
     """
 
-    For a node to be visible ypu have the following decisions
+    For a node to be visible you have the following decisions
     out-deg_=
         >0  => appears
-        in_deg_=
+        else, in_deg_=
             =0 => hidden
-            ind_deg_>
+            else, ind_deg_>
                 = 0 => appears
                 > 0 => hidden
     """

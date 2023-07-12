@@ -1,6 +1,6 @@
 # pylint: disable=import-outside-toplevel, missing-function-docstring
 import numpy as np
-from nestmodel.unified_functions import is_directed, get_sparse_adjacency, num_nodes, get_out_degree_array
+from nestmodel.unified_functions import get_sparse_adjacency, num_nodes
 from nestmodel.centralities import calc_katz
 from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
 from tnestmodel.t_fast_graph import MappedGraph
@@ -23,7 +23,7 @@ def t_sparse_adjacency(G):
 KIND_BROADCAST = "broadcast"
 KIND_RECEIVE = "receive"
 
-def calc_temp_katz(G_t, alpha=0.1, epsilon=0, max_iter=None, kind="broadcast"):
+def calc_temp_katz(G_t, alpha=0.1, epsilon=0, max_iter=None, kind="broadcast"): # pylint: disable=unused-argument
     """Returns the katz scores of the current graph"""
     from scipy.sparse.linalg import spsolve # pylint: disable=import-outside-toplevel
     from scipy.sparse import identity
@@ -63,7 +63,7 @@ def get_leftmost_entry_for_nodes(katz, identifiers, n, default=1):
     return out
 
 
-def calc_temp_katz_from_causal(G_t, alpha=0.1, epsilon=0, max_iter=None, kind="broadcast"):
+def calc_temp_katz_from_causal(G_t, alpha=0.1, epsilon=0, max_iter=None, kind="broadcast"): # pylint: disable=unused-argument
     T = len(G_t.slices)
     n = G_t.num_nodes
 
@@ -73,18 +73,16 @@ def calc_temp_katz_from_causal(G_t, alpha=0.1, epsilon=0, max_iter=None, kind="b
         M = calc_katz(G_t.get_causal_completion().switch_directions(), alpha=alpha).reshape(T, n)
         return M[0,:].copy().ravel()
     elif isinstance(G_t, SparseTempFastGraph):
-        G_causal = G_t.get_sparse_causal_completion()
-        G_causal_rev = G_causal.switch_directions()
-        katz = calc_katz(G_causal_rev, alpha=alpha)
+        g_causal = G_t.get_sparse_causal_completion()
+        g_causal_rev = g_causal.switch_directions()
+        katz = calc_katz(g_causal_rev, alpha=alpha)
 
         from scipy.sparse import coo_array
-        ts = G_causal.identifiers[:,0]
-        ids =  G_causal.identifiers[:,1]
+        ts = g_causal.identifiers[:,0]
+        ids =  g_causal.identifiers[:,1]
         print(coo_array((katz, (ts, ids)), shape = (T, n)).todense().T)
 
 
-        return get_leftmost_entry_for_nodes(katz, G_causal.identifiers, n)
+        return get_leftmost_entry_for_nodes(katz, g_causal.identifiers, n)
     else:
         raise NotImplementedError()
-
-

@@ -1,7 +1,7 @@
 # pylint: disable=missing-function-docstring, missing-class-docstring
 import unittest
 import numpy as np
-from numpy.testing import assert_array_equal
+#from numpy.testing import assert_array_equal
 from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
 from tnestmodel.t_centralities import calc_temp_katz, calc_temp_katz_from_causal
 
@@ -26,6 +26,15 @@ class TestTCentralities(unittest.TestCase):
         for kind, solution in zip(kinds, solutions1):
             np.testing.assert_almost_equal(solution, calc_temp_katz_from_causal(G, kind=kind))
 
+    def test_katz(self):
+        G = TempFastGraph(temp_edges1, is_directed=True)
+        for kind, solution in zip(kinds, solutions1):
+            np.testing.assert_almost_equal(solution, calc_temp_katz(G, kind=kind))
+
+    def test_katz_causal(self):
+        G = TempFastGraph(temp_edges1, is_directed=True)
+        for kind, solution in zip(kinds, solutions1):
+            np.testing.assert_almost_equal(solution, calc_temp_katz_from_causal(G, kind=kind))
 
 if __name__ == '__main__':
     unittest.main()
