@@ -100,7 +100,7 @@ class TestTFastGraph(unittest.TestCase):
         self.sparse_temp_fast_graph_test([[[0,1]],
                                    [[1,2]]],
                                   4,
-                                  [[0,1], [2, 3]],
+                                  [[0,1], [1, 3], [2, 3]],
                                   is_directed = True
                                   )
 
@@ -109,8 +109,8 @@ class TestTFastGraph(unittest.TestCase):
         self.sparse_temp_fast_graph_test([[[0,1]],
                                    [[1,2]],
                                    [[1,2]]],
-                                  6,
-                                  [[0,1], [2, 3], [2,5], [4, 5]],
+                                  5,
+                                  [[0,1], [1, 4], [1,4], [2,4], [2,4], [3,4]],
                                   is_directed = True
                                   )
 
@@ -119,8 +119,8 @@ class TestTFastGraph(unittest.TestCase):
         self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
                                    [[1,2]],
                                    [[0,1], [1,2]]],
-                                  8,
-                                  [[0, 1], [0, 6], [1, 2], [1,4], [1,7], [3, 4],[3,7], [5,6], [6,7]],
+                                  6,
+                                  [[0, 1], [0, 4], [1, 5], [1,5], [1,5], [2, 5], [2,5], [3,4], [4,5]],
                                   is_directed = True
                                   )
 
@@ -132,6 +132,29 @@ class TestTFastGraph(unittest.TestCase):
                                   [[0, 1], [1, 0], [1,2], [1,4], [2,1], [2,3], [3,4], [4,3]],
                                   is_directed = False
                                   )
+
+    def test_causal_adjacency_the_same(self):
+        edges0 = np.array([[2,1]], dtype=np.uint32)
+        edges1 = np.array([[1,2]], dtype=np.uint32)
+        edges2 = np.array([[2,3]], dtype=np.uint32)
+        edges3 = np.array([[0,1],[1,2], [2,0]], dtype=np.uint32)
+        G = TempFastGraph([edges0, edges1, edges2, edges3], is_directed=True)
+        self.assertEqual((G.sparse_causal_adjacency()!=G.get_causal_completion().to_coo()).nnz, 0)
+
+
+    def test_sparse_causal_adjacency_multi_edges(self):
+        edges0 = np.array([[0,1], [1,2]], dtype=np.uint32)
+        edges1 = np.array([[1,2]], dtype=np.uint32)
+        edges2 = np.array([[0,1], [1,2]], dtype=np.uint32)
+        G = SparseTempFastGraph([edges0, edges1, edges2], is_directed=True)
+        coo = G.get_sparse_causal_completion().to_coo()
+        assert_array_equal(coo.col, [1, 4, 5, 5, 5, 5, 5, 4, 5])
+        assert_array_equal(coo.row, [0, 0, 1, 1, 1, 2, 2, 3, 4])
+        assert_array_equal(coo.data, [1., 1., 1., 1., 1., 1., 1., 1., 1.])
+
+        coo_dense = coo.todense()
+        self.assertEqual(coo_dense[1,5], 3)
+        self.assertEqual(coo_dense[2,5], 2)
 
 if __name__ == '__main__':
     unittest.main()

@@ -14,6 +14,9 @@ class TempFastGraph():
         for edges_t in edges:
             assert edges_t.shape[0]>0
             assert edges_t.shape[1]==2
+
+        if num_nodes is None:
+            num_nodes = max(map(np.max, edges)) + 1
         self.slices=[FastGraph(v, is_directed=is_directed, num_nodes=num_nodes) for v in edges]
         self.num_nodes = max(G.num_nodes for G in self.slices)
         self.is_directed = is_directed
@@ -43,6 +46,18 @@ class TempFastGraph():
             return G, (self.num_nodes, T)
         else:
             return G
+
+
+    def sparse_causal_adjacency(self):
+        """returns the sparse causal adjacency withour computing the causal graph first"""
+        import scipy.sparse as sparse
+        from itertools import repeat
+        T = len(self.slices)
+        adjacencies = [G.to_coo() for G in self.slices]
+        empty_matrix = sparse.coo_matrix(([], ([], [])), shape=adjacencies[0].shape)
+        columns = [sparse.vstack(tuple(np.repeat(A,i+1)) + tuple(repeat(empty_matrix, T-i-1))) for i, A in enumerate(adjacencies)]
+        return sparse.hstack(columns)
+
 
     def reverse_slice_direction(self):
         """Returns a new graph with all edge directions reversed within time slices"""
@@ -146,7 +161,7 @@ def get_total_degree(l_edges, is_directed, num_nodes):
 
 
 
-def get_visible_nodes_per_time(slices, is_directed, num_nodes):
+def get_visible_nodes_per_time(slices, num_nodes):
     """
 
     For a node to be visible you have the following decisions
@@ -158,29 +173,24 @@ def get_visible_nodes_per_time(slices, is_directed, num_nodes):
                 = 0 => appears
                 > 0 => hidden
     """
-    if is_directed:
-        active_nodes_list = [None for _ in range(len(slices))]
-        num_active_nodes = np.zeros(len(slices), dtype=np.int32)
-        in_deg_greater = np.zeros(num_nodes, dtype=np.int32)
+    active_nodes_list = [None for _ in range(len(slices))]
+    num_active_nodes = np.zeros(len(slices), dtype=np.int32)
+    in_deg_greater = np.zeros(num_nodes, dtype=np.int32)
 
-        for t, G in reversed(list(enumerate(slices))):
-            active_nodes_this_slice = np.zeros(G.num_nodes, dtype=np.bool_)
-            for v in range(G.num_nodes):
-                v_global = G.unmapping[v]
-                if G.out_degree[v] > 0:
+    for t, G in reversed(list(enumerate(slices))):
+        active_nodes_this_slice = np.zeros(G.num_nodes, dtype=np.bool_)
+        for v in range(G.num_nodes):
+            v_global = G.unmapping[v]
+            if G.out_degree[v] > 0:
+                active_nodes_this_slice[v] = 1
+                num_active_nodes[t] +=1
+            else:
+                if G.in_degree[v] > 0 and in_deg_greater[v_global]==0:
                     active_nodes_this_slice[v] = 1
                     num_active_nodes[t] +=1
-                else:
-                    if G.in_degree[v] > 0 and in_deg_greater[v_global]==0:
-                        active_nodes_this_slice[v] = 1
-                        num_active_nodes[t] +=1
-                in_deg_greater[v_global]+=G.in_degree[v]
-            active_nodes_list[t] = active_nodes_this_slice
-        #print(active_nodes_list)
-        #print(num_active_nodes)
-        return active_nodes_list, num_active_nodes
-    else:
-        return np.cumsum([G.num_nodes for G in slices])
+            in_deg_greater[v_global]+=G.in_degree[v]
+        active_nodes_list[t] = active_nodes_this_slice
+    return active_nodes_list, num_active_nodes
 
 
 
@@ -223,7 +233,7 @@ class SparseTempFastGraph():
         list_successors = [np.empty(out_deg, dtype=np.int32) for out_deg in out_degree]
         num_successors = np.zeros(self.num_nodes, dtype=np.int32)
 
-        is_active, vis_nodes = get_visible_nodes_per_time(self.slices, self.is_directed, self.num_nodes)
+        is_active, vis_nodes = get_visible_nodes_per_time(self.slices, self.num_nodes)
         num_prev_nodes = np.cumsum([0]+list(vis_nodes))
         #num_prev_nodes = np.cumsum([0]+[G.num_nodes for G in self.slices])
         last_of_its_kind = np.full(self.num_nodes, -1, dtype=np.int32)
