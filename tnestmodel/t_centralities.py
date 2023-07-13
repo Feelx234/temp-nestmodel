@@ -32,6 +32,8 @@ def calc_temp_katz(G_t, alpha=0.1, epsilon=0, max_iter=None, kind="broadcast"): 
 
     n = t_num_nodes(G_t)
     b=np.ones(n)
+    assert G_t.r >= len(G_t.slices), "Katz centrality is not supported for restless walks, use causal method instead."
+
     if kind==KIND_BROADCAST:
         slices_in_right_order = reversed(G_t.slices)
     else:

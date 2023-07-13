@@ -9,7 +9,7 @@ class TempFastGraph():
     """A class to model temporal graphs through time slices
     Each timeslices contains all potential nodes (even if they have degree zero)
     """
-    def __init__(self, edges, is_directed, num_nodes=None):
+    def __init__(self, edges, is_directed, r=None, num_nodes=None):
         self.num_times=len(edges)
         for edges_t in edges:
             assert edges_t.shape[0]>0
@@ -20,6 +20,9 @@ class TempFastGraph():
         self.slices=[FastGraph(v, is_directed=is_directed, num_nodes=num_nodes) for v in edges]
         self.num_nodes = max(G.num_nodes for G in self.slices)
         self.is_directed = is_directed
+        if r is None:
+            r = len(self.slices)
+        self.r = r
 
     def get_causal_completion(self, return_temporal_info=False) -> Tuple[FastGraph, Tuple[int, int]]:
         """ Returns the directed graph that corresponds to this temporal graph
@@ -49,10 +52,58 @@ class TempFastGraph():
             return G
 
 
+    def get_restless_causal_completion(self):
+        """Returns a restless causal completion of the temporal graph
+        This uses the parameter r to specify the maximum length of restless walks
+        """
+        all_edges = []
+        T = len(self.slices)
+        in_degrees = [G.in_degree for G in self.slices]
+        out_degrees = [G.out_degree for G in self.slices]
+        mapping = [np.arange(self.num_nodes)] * T
+        _, max_out_degree = get_rolling_max_degree((in_degrees, out_degrees), mapping, self.is_directed, self.r, self.num_nodes)
+        list_successors = [-np.ones(out_deg, dtype=np.int32) for out_deg in max_out_degree]
+        time_successors = [np.empty(out_deg, dtype=np.int32) for out_deg in max_out_degree]
+        first_index = np.zeros(self.num_nodes, dtype=np.uint32)
+        last_index = np.zeros(self.num_nodes, dtype=np.uint32)
+        for t in range(T-1, -1, -1):
+            g = self.slices[t]
+
+            num_total_edges = len(g.edges) + np.sum(last_index - first_index)
+
+            for u, v in g.edges:
+                buff_size = len(list_successors[u])
+                u_successors = list_successors[u]
+                u_successors[last_index[u] % buff_size] = v + t*self.num_nodes
+                time_successors[u][last_index[u] % buff_size] = t
+                last_index[u] +=1
+            new_edges = np.empty((num_total_edges, 2), dtype=np.uint32)
+            n = 0
+            for v in range(self.num_nodes):
+
+                buff_size = len(list_successors[v])
+                if buff_size ==0:
+                    continue
+                while (time_successors[v][first_index[v] % buff_size]  > t+self.r) and (first_index[v] < last_index[v]):
+                    first_index[v] += 1
+                delta = last_index[v]-first_index[v]
+                for j in range(0, delta):
+                    new_edges[n+j,0] = v + t*self.num_nodes
+                    assert list_successors[v][(first_index[v] + j) % buff_size]>=0
+                    new_edges[n+j,1] = list_successors[v][(first_index[v] + j) % buff_size]
+                n+=delta
+            all_edges.append(new_edges[:n, :])
+        all_edges = np.vstack(all_edges)
+        G = FastGraph(all_edges, is_directed=True, num_nodes=T*self.num_nodes)
+        G.num_nodes_per_time = self.num_nodes
+        return G
+
+
+
     def sparse_causal_adjacency(self):
         """returns the sparse causal adjacency withour computing the causal graph first"""
-        import scipy.sparse as sparse
-        from itertools import repeat
+        import scipy.sparse as sparse # pylint: disable=import-outside-toplevel
+        from itertools import repeat # pylint: disable=import-outside-toplevel
         T = len(self.slices)
         adjacencies = [G.to_coo() for G in self.slices]
         empty_matrix = sparse.coo_matrix(([], ([], [])), shape=adjacencies[0].shape)
@@ -137,7 +188,49 @@ class MappedGraph(FastGraph):
         return coo_matrix((np.ones(edges.shape[0]), (edges[:,0], edges[:,1])), shape = (self.out_num_nodes, self.out_num_nodes))
 
 
+def _get_rolling_max_degree(l_degrees, l_mapping, r, num_nodes):
 
+    # r = 1 is that we we look at the current and the next slice
+    # thus need to increase r by 1 to get buf size
+    buff_size = r+1
+    T = len(l_degrees)
+    max_degree = np.zeros(num_nodes, dtype=np.uint32)
+    curr_degree = np.zeros(num_nodes, dtype=np.uint32)
+    roll_degree = np.zeros((num_nodes, buff_size), dtype=np.uint32)
+    roll_time = np.zeros((num_nodes, buff_size), dtype=np.uint32)
+    first_index = np.zeros(num_nodes, dtype=np.uint32)
+    last_index = np.zeros(num_nodes, dtype=np.uint32)
+    for t in range(T):
+        mapping = l_mapping[t]
+        degrees = l_degrees[t]
+        #print(max_degree)
+        #print(curr_degree)
+        #print(roll_degree)
+        #print(first_index)
+        #print(last_index)
+        #print()
+        for v, deg in zip(mapping, degrees):
+            curr_degree[v] += deg
+            while (roll_time[v, first_index[v] % buff_size]  < t-r) and (first_index[v] < last_index[v]):
+                curr_degree[v] -= roll_degree[v, first_index[v] % buff_size]
+                first_index[v] += 1
+            max_degree[v] = max(max_degree[v], curr_degree[v])
+            roll_degree[v, last_index[v] % buff_size] = deg
+            last_index[v] += 1
+    return max_degree
+
+
+def get_rolling_max_degree(l_degrees, l_mapping, is_directed, r, num_nodes):
+    """Computes the rolling total degree of a node (i.e. summed over time)"""
+    assert len(l_degrees[0])==len(l_mapping)
+    assert r >= 0
+    if is_directed:
+        max_in_degree = _get_rolling_max_degree(l_degrees[0], l_mapping, r, num_nodes)
+        max_out_degree = _get_rolling_max_degree(l_degrees[1], l_mapping, r, num_nodes)
+        return max_in_degree, max_out_degree
+    else:
+        max_degree = _get_rolling_max_degree(l_degrees[0], l_mapping, r, num_nodes)
+        return max_degree, max_degree
 
 
 def get_total_degree(l_edges, is_directed, num_nodes):

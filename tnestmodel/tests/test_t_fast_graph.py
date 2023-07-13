@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
 from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
-
+from tnestmodel.t_fast_graph import get_rolling_max_degree
 
 
 
@@ -155,6 +155,87 @@ class TestTFastGraph(unittest.TestCase):
         coo_dense = coo.todense()
         self.assertEqual(coo_dense[1,5], 3)
         self.assertEqual(coo_dense[2,5], 2)
+
+
+
+
+
+class TestTFastGraphHelpers(unittest.TestCase):
+    def test_rolling_max_degree(self):
+        tmp_degrees = [[0,1,2], [2,2,0], [0,0,1], [1,1,1], [1,0,1]]
+        l_degrees = [tmp_degrees, tmp_degrees]
+        l_mapping = [[0,1,2]]*5
+        results = {
+            0 : [2,2,2],
+            1 : [2,3,2],
+            2 : [2,3,3],
+            3 : [3,4,4],
+            4 : [4,4,5]
+        }
+        for r, expected_result in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, r=r, num_nodes=3)
+            assert_array_equal(res1, res2)
+            assert_array_equal(res1, expected_result, err_msg=f"r={r}")
+
+
+    def test_rolling_max_degree_2(self):
+        tmp_degrees = [[1,2], [2,2], [1], [1,1,1], [1,1]]
+        l_degrees = [tmp_degrees, tmp_degrees]
+        l_mapping = [[1,2], [0,1], [2], [0,1,2], [0,2]]
+        results = {
+            0 : [2,2,2],
+            1 : [2,3,2],
+            2 : [2,3,3],
+            3 : [3,4,4],
+            4 : [4,4,5],
+            5 : [4,4,5],
+        }
+        for r, expected_result in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, r=r, num_nodes=3)
+            assert_array_equal(res1, res2)
+            assert_array_equal(res1, expected_result, err_msg=f"r={r}")
+
+
+    def test_rolling_max_degree_dir(self):
+        tmp_degrees1 = [[1,2], [2,2], [1], [1,1,1], [1,1]]
+        tmp_degrees2 = [[0,4], [1,0], [1], [1,2,3], [0,3]]
+        l_degrees = [tmp_degrees1, tmp_degrees2]
+        l_mapping = [[1,2], [0,1], [2], [0,1,2], [0,2]]
+        results = {
+            0 : ([2,2,2], [1,2,4]),
+            1 : ([2,3,2], [1,2,4]),
+            2 : ([2,3,3], [1,2,5]),
+            3 : ([3,4,4], [2,2,8]),
+            4 : ([4,4,5], [2,2,11]),
+            5 : ([4,4,5], [2,2,11]),
+        }
+        for r, (expected_result1, expected_result2) in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, True, r=r, num_nodes=3)
+            assert_array_equal(res1, expected_result1, err_msg=f"r={r}")
+            assert_array_equal(res2, expected_result2, err_msg=f"r={r}")
+
+
+    def test_rolling_max_degree_3(self):
+        tmp_degrees = [[0,1,2], [0,0,0], [0,0,0], [2,2,0], [0,0,1], [0,0,0], [0,0,0], [1,1,1], [1,0,1]]
+        l_degrees = [tmp_degrees, tmp_degrees]
+        l_mapping = [[0,1,2]]*9
+        results = {
+            0 : [2,2,2],
+            1 : [2,2,2],
+            2 : [2,2,2],
+            3 : [2,3,2],
+            4 : [2,3,3],
+            5 : [2,3,3],
+            6 : [2,3,3],
+            7 : [3,4,4],
+            8 : [4,4,5],
+            9 : [4,4,5],
+        }
+        for r, expected_result in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, r=r, num_nodes=3)
+            assert_array_equal(res1, res2)
+            assert_array_equal(res1, expected_result, err_msg=f"r={r}")
+
 
 if __name__ == '__main__':
     unittest.main()
