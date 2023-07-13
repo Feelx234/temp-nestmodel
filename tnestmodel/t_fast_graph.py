@@ -24,7 +24,7 @@ class TempFastGraph():
             r = len(self.slices)
         self.r = r
 
-    def get_causal_completion(self, return_temporal_info=False) -> Tuple[FastGraph, Tuple[int, int]]:
+    def get_causal_completion(self) -> FastGraph:
         """ Returns the directed graph that corresponds to this temporal graph
         Returns a normal directed graph in which all nodes have out neighborhoods
         that are identical to their successors in the temporal graph
@@ -46,10 +46,25 @@ class TempFastGraph():
         all_edges = np.vstack(list(reversed(all_edges)))
         G = FastGraph(all_edges, is_directed=True, num_nodes=T*self.num_nodes)
         G.num_nodes_per_time = self.num_nodes
-        if return_temporal_info:
-            return G, (self.num_nodes, T)
-        else:
-            return G
+        return G
+
+    def calc_wl(self, initial_colors=None, max_depth=None):
+        """Compute the WL colors of this graph using the provided initial colors"""
+        G_causal_rev = self.get_causal_completion().switch_directions()
+        out = G_causal_rev.calc_wl(initial_colors=initial_colors, max_depth=max_depth)
+        wl_colors = [colors.reshape((len(self.slices), self.num_nodes)) for colors in out]
+        return wl_colors # each row is one timeslice
+
+    def apply_wl_colors_to_slices(self, wl_colors):
+        wl_colors_by_slice = [[] for _ in range(len(self.slices))]
+        for colors_per_depth in wl_colors:
+            for i, slice_colors in enumerate(wl_colors_by_slice):
+                slice_colors.append(colors_per_depth[i,:].ravel())
+        for G, colors in zip(self.slices, wl_colors_by_slice):
+            G.base_partitions = np.array(colors, dtype=np.uint32)
+            G.wl_iterations = len(G.base_partitions)
+            G.reset_edges_ordered()
+
 
 
     def get_restless_causal_completion(self):

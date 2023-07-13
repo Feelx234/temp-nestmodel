@@ -1,7 +1,36 @@
 from collections import Counter
+import numpy as np
 import networkx as nx
 
-def draw_networkx_causal(G, labels=False):
+from matplotlib import colors as mcolors
+
+# the color names thing is from
+#  https://stackoverflow.com/questions/22408237/named-colors-in-matplotlib
+named_colors = dict(mcolors.BASE_COLORS, **mcolors.CSS4_COLORS)
+fixed_colors = ["red", "yellow", "green", "blue", "deeppink", "aqua", "teal",
+                "saddlebrown", "darkviolet", "lawngreen", "deepskyblue"]
+remove_colors = ['w', 'k', 'ghostwhite', 'azure', 'honeydew',
+                     'snow', 'white', 'seashell', 'ivory', 'aliceblue',
+                    'lavenderblush', 'mintcream', 'lavender', 'whitesmoke', 'floralwhite']
+for remove_color in remove_colors+fixed_colors:
+    del named_colors[remove_color]
+
+by_hsv = sorted((tuple(mcolors.rgb_to_hsv(mcolors.to_rgba(color)[:3])), name)
+                for name, color in named_colors.items())
+
+# "#1f78b4" is the networkx color
+sorted_names = [name for hsv, name in by_hsv]
+sorted_names = np.array(sorted_names).reshape(13,10).T.ravel()
+
+def to_color(v):
+    first_colors = ["#1f78b4"]+fixed_colors
+    if v < len(first_colors):
+        return first_colors[v]
+    v-=len(first_colors)
+    assert v<len(sorted_names), f"May only have color value in [0:{len(sorted_names)+len(first_colors)-1}]. You have requested {v+len(first_colors)}"
+    return sorted_names[v]
+
+def draw_networkx_causal(G, labels=False, colors=None):
     """Creates a plot of the causal graph G"""
     include_multiplicity=False
     edge_labels = {}
@@ -26,8 +55,16 @@ def draw_networkx_causal(G, labels=False):
             multiplicity = edge_multiplicity[edge]
             if multiplicity > 1:
                 edge_labels[edge]=str(multiplicity)
-
-    nx.draw_networkx_nodes(G_nx, pos)
+    if colors is None:
+        nx.draw_networkx_nodes(G_nx, pos)
+    elif isinstance(colors, int):
+        T = G.num_nodes//G.num_nodes_per_time
+        G_rev = G.switch_directions()
+        node_wl = G_rev.calc_wl()[colors].ravel()
+        node_color = [to_color(wl) for wl in node_wl]
+        nx.draw_networkx_nodes(G_nx, pos, node_color=node_color)
+    else:
+        raise NotImplementedError()
     nx.draw_networkx_edges( # From https://stackoverflow.com/questions/52588453/creating-curved-edges-with-networkx-in-python3
         G_nx, pos, edgelist=in_time_edges,
         connectionstyle="arc3,rad=0.2"  # <-- THIS IS IT
@@ -44,13 +81,24 @@ def draw_networkx_causal(G, labels=False):
         nx.draw_networkx_labels(G_nx, pos, font_size=22, font_color="whitesmoke")
 
 
-def draw_networkx_temp(G_t):
+def draw_networkx_temp(G_t, colors=None):
     """Create a plot of the temporal graph G_t"""
+    if isinstance(colors, int):
+        cols = G_t.calc_wl()
+        G_t.apply_wl_colors_to_slices(cols)
+
     for t, G in enumerate(G_t.slices):
         G_nx = G.to_nx()
         pos = {i : (t, i) for i in G_nx.nodes}
 
-        nx.draw_networkx_nodes(G_nx, pos)
+        if colors is None:
+            nx.draw_networkx_nodes(G_nx, pos)
+        elif isinstance(colors, int):
+            node_wl = G.base_partitions[colors]
+            node_color = [to_color(wl) for wl in node_wl]
+            nx.draw_networkx_nodes(G_nx, pos, node_color=node_color)
+        else:
+            raise NotImplementedError()
         nx.draw_networkx_edges( # From https://stackoverflow.com/questions/52588453/creating-curved-edges-with-networkx-in-python3
             G_nx, pos,
             connectionstyle="arc3,rad=0.2"  # <-- THIS IS IT
