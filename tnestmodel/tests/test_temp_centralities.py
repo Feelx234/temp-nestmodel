@@ -2,8 +2,8 @@
 import unittest
 import numpy as np
 #from numpy.testing import assert_array_equal
-from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
-from tnestmodel.t_centralities import calc_temp_katz, calc_temp_katz_from_causal
+from tnestmodel.temp_fast_graph import TempFastGraph, SparseTempFastGraph
+from tnestmodel.temp_centralities import calc_temp_katz, calc_temp_katz_from_causal
 
 
 edges0 = np.array([[2,1]], dtype=np.uint32)

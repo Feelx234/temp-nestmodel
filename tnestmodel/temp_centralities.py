@@ -2,11 +2,11 @@
 import numpy as np
 from nestmodel.unified_functions import get_sparse_adjacency, num_nodes
 from nestmodel.centralities import calc_katz
-from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
-from tnestmodel.t_fast_graph import MappedGraph
+from tnestmodel.temp_fast_graph import TempFastGraph, SparseTempFastGraph
+from tnestmodel.temp_fast_graph import MappedGraph
 def is_t_fastgraph_str(G_str):
-    return (G_str.startswith("<tnestmodel.t_fast_graph.SparseTempFastGraph") or
-            G_str.startswith("<tnestmodel.t_fast_graph.TempFastGraph "))
+    return (G_str.startswith("<tnestmodel.temp_fast_graph.SparseTempFastGraph") or
+            G_str.startswith("<tnestmodel.temp_fast_graph.TempFastGraph "))
 
 def t_num_nodes(G):
     G_str = repr(G)

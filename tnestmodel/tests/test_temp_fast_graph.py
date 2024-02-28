@@ -2,8 +2,8 @@
 import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
-from tnestmodel.t_fast_graph import TempFastGraph, SparseTempFastGraph
-from tnestmodel.t_fast_graph import get_rolling_max_degree
+from tnestmodel.temp_fast_graph import TempFastGraph, SparseTempFastGraph
+from tnestmodel.temp_fast_graph import get_rolling_max_degree
 
 
 
