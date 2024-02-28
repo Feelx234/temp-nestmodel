@@ -1,12 +1,13 @@
 import numpy as np
+from numba import njit
 
-
+@njit(cache=True)
 def count_number_of_active_nodes_per_node(E, num_nodes):
     """Computes the number of active nodes per non-temporal node
     assumes the times used in E are positive
     """
-    last_t = -np.ones(num_nodes, dtype=int)
-    num_active_per_node = np.zeros(num_nodes, dtype=int)
+    last_t = -np.ones(num_nodes, dtype=np.int64)
+    num_active_per_node = np.zeros(num_nodes, dtype=np.int64)
     for u,v,t in E:
         assert u != v
         if last_t[u]!=t:
@@ -18,21 +19,21 @@ def count_number_of_active_nodes_per_node(E, num_nodes):
             num_active_per_node[v]+=1
     return num_active_per_node
 
-
+@njit(cache=True)
 def convert_edges_to_active_edges(E, num_active_per_node, num_active_nodes, num_nodes):
     """Converts temporal edges into edges connecting the active nodes
 
 
     Returns : active_edges, times_for_active
     """
-    last_t = -np.ones(num_nodes, dtype=int)
+    last_t = -np.ones(num_nodes, dtype=np.int64)
     last_active_node = cumsum_from_zero(num_active_per_node, full=False) - 1
     #last_active_node = np.empty(len(num_active), dtype=int)
     #last_active_node[0]=-1
     #last_active_node[1:] = np.cumsum(num_active)[:-1]-1
 
-    E_out = np.empty((len(E), 2), dtype = int)
-    times_for_active = np.empty(num_active_nodes, dtype=int)
+    E_out = np.empty((len(E), 2), dtype = np.int64)
+    times_for_active = np.empty(num_active_nodes, dtype=np.int64)
 
     for i, (u,v,t) in enumerate(E):
         if last_t[u]!=t:
@@ -109,7 +110,7 @@ def compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed 
 
 
 
-
+@njit(cache=True)
 def one_round(hashes : np.ndarray, colors : np.ndarray, num_colors : int, E_active : np.ndarray, num_active_per_node : np.ndarray, num_active_nodes : int, times : np.ndarray, h : int):
     """Performs one round of wl color refinement
     hashes : an array of hashes of length num_active_nodes + num_colors
@@ -164,7 +165,7 @@ def one_round(hashes : np.ndarray, colors : np.ndarray, num_colors : int, E_acti
     return out_colors
 
 
-
+@njit(cache=True)
 def adjust_hashes_for_finite_horizon(cumsum_hashes, num_active_per_node, times, h):
     """Computes hashes per active node for temporal graph with finite horizon
     cumsum_hashes : Cummulatives hashes per node
@@ -202,7 +203,7 @@ def adjust_hashes_for_finite_horizon(cumsum_hashes, num_active_per_node, times, 
     #print(hashes_out)
     return hashes_out
 
-
+@njit(cache=True)
 def cumsum_from_zero(vals, full=True):
     """Returns a cumsum of vals starting from zero
     Example:
@@ -212,24 +213,24 @@ def cumsum_from_zero(vals, full=True):
     if full=False, removes the last element
     """
     if full:
-        out = np.empty(len(vals)+1, dtype=int)
+        out = np.empty(len(vals)+1, dtype=np.int64)
         out[0]=0
         out[1:] = np.cumsum(vals)
     else:
-        out = np.empty(len(vals), dtype=int)
+        out = np.empty(len(vals), dtype=np.int64)
         out[0]=0
         out[1:] = np.cumsum(vals)[:-1]
     return out
 
 
-
+@njit(cache=True)
 def repeat_active_nodes(num_active_per_node):
     """ Repeats the active nodes by the number of the nodes
     Input: [1,4,3]
     Output [0,1,1,1,1,2,2,2]
     """
     length = np.sum(num_active_per_node)
-    out = np.empty(length, dtype=int)
+    out = np.empty(length, dtype=np.int64)
     n=0
     for i, d in enumerate(num_active_per_node):
         out[n:n+d]=i

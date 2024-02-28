@@ -20,7 +20,15 @@ times2 = [0, 0, 1, 3, 1, 2, 3, 4, 2, 4]
 
 class TestTemporalWL(unittest.TestCase):
     def test_compute_d_rounds_1(self):
-        colors, nodes, times = compute_d_rounds(E1, 4, 3, h=-1, seed=0)
+        colors, nodes, times = compute_d_rounds(E1, 4, d=3, h=-1, seed=0)
+        self.assertEqual(len(colors), 2)
+        assert_partitions_equivalent(colors[0], np.zeros(7, dtype=int))
+        assert_partitions_equivalent(colors[1], [1,2,2,2,1,0,0])
+        assert_array_equal(nodes, nodes1)
+        assert_array_equal(times, times1)
+
+    def test_compute_d_rounds_1_1(self):
+        colors, nodes, times = compute_d_rounds(E1, num_nodes=5, d=3, h=-1, seed=0)
         self.assertEqual(len(colors), 2)
         assert_partitions_equivalent(colors[0], np.zeros(7, dtype=int))
         assert_partitions_equivalent(colors[1], [1,2,2,2,1,0,0])
