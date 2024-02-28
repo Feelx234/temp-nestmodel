@@ -140,6 +140,12 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+datasets
+env
+nestmodel.egginfo
+
+
 scripts/Katz convergence.py
 scripts/ca-netscience.edges
 scripts/ERGM.pkl
@@ -150,7 +156,7 @@ scripts/convergence2_jaccard.py
 scripts/convergence2_katz.py
 scripts/convergence2_pagerank.py
 scripts/datasets_path.txt
-env
-nestmodel.egginfo
+
+
 Untitled.ipynb
 Untitled1.ipynb
