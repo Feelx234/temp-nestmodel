@@ -58,7 +58,6 @@ def draw_networkx_causal(G, labels=False, colors=None):
     if colors is None:
         nx.draw_networkx_nodes(G_nx, pos)
     elif isinstance(colors, int):
-        T = G.num_nodes//G.num_nodes_per_time
         G_rev = G.switch_directions()
         node_wl = G_rev.calc_wl()[colors].ravel()
         node_color = [to_color(wl) for wl in node_wl]
@@ -96,6 +95,9 @@ def draw_networkx_temp(G_t, colors=None):
         elif isinstance(colors, int):
             node_wl = G.base_partitions[colors]
             node_color = [to_color(wl) for wl in node_wl]
+            nx.draw_networkx_nodes(G_nx, pos, node_color=node_color)
+        elif isinstance(colors, (np.ndarray, list, tuple)):
+            node_color = [to_color(wl) for wl in colors[t]]
             nx.draw_networkx_nodes(G_nx, pos, node_color=node_color)
         else:
             raise NotImplementedError()
