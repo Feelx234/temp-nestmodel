@@ -172,10 +172,10 @@ class TestTFastGraphHelpers(unittest.TestCase):
             3 : [3,4,4],
             4 : [4,4,5]
         }
-        for r, expected_result in results.items():
-            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, r=r, num_nodes=3)
+        for h, expected_result in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, h=h, num_nodes=3)
             assert_array_equal(res1, res2)
-            assert_array_equal(res1, expected_result, err_msg=f"r={r}")
+            assert_array_equal(res1, expected_result, err_msg=f"h={h}")
 
 
     def test_rolling_max_degree_2(self):
@@ -190,10 +190,10 @@ class TestTFastGraphHelpers(unittest.TestCase):
             4 : [4,4,5],
             5 : [4,4,5],
         }
-        for r, expected_result in results.items():
-            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, r=r, num_nodes=3)
+        for h, expected_result in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, h=h, num_nodes=3)
             assert_array_equal(res1, res2)
-            assert_array_equal(res1, expected_result, err_msg=f"r={r}")
+            assert_array_equal(res1, expected_result, err_msg=f"h={h}")
 
 
     def test_rolling_max_degree_dir(self):
@@ -209,10 +209,10 @@ class TestTFastGraphHelpers(unittest.TestCase):
             4 : ([4,4,5], [2,2,11]),
             5 : ([4,4,5], [2,2,11]),
         }
-        for r, (expected_result1, expected_result2) in results.items():
-            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, True, r=r, num_nodes=3)
-            assert_array_equal(res1, expected_result1, err_msg=f"r={r}")
-            assert_array_equal(res2, expected_result2, err_msg=f"r={r}")
+        for h, (expected_result1, expected_result2) in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, True, h=h, num_nodes=3)
+            assert_array_equal(res1, expected_result1, err_msg=f"h={h}")
+            assert_array_equal(res2, expected_result2, err_msg=f"h={h}")
 
 
     def test_rolling_max_degree_3(self):
@@ -231,10 +231,10 @@ class TestTFastGraphHelpers(unittest.TestCase):
             8 : [4,4,5],
             9 : [4,4,5],
         }
-        for r, expected_result in results.items():
-            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, r=r, num_nodes=3)
+        for h, expected_result in results.items():
+            res1, res2 = get_rolling_max_degree(l_degrees, l_mapping, False, h=h, num_nodes=3)
             assert_array_equal(res1, res2)
-            assert_array_equal(res1, expected_result, err_msg=f"r={r}")
+            assert_array_equal(res1, expected_result, err_msg=f"h={h}")
 
 
 if __name__ == '__main__':

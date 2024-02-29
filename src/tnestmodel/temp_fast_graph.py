@@ -3,6 +3,7 @@ from typing import Tuple
 import numpy as np
 from nestmodel.fast_graph import FastGraph
 from nestmodel.utils import make_directed
+from tnestmodel.utils import partition_temporal_edges
 
 
 class TempFastGraph():
@@ -159,28 +160,37 @@ def apply_mapping_to_edges(edges, mapping):
 
 
 def to_mapping(values, mapping): #pylint: disable=missing-function-docstring
-    return {key : values[val] for key, val in mapping.items()}
+    return {gloabl_node_id : values[local_node_id] for gloabl_node_id, local_node_id in mapping.items()}
 
 
 
 class MappedGraph(FastGraph):
-    """A FastGraph that removes degree zero nodes through relabeling.s"""
-    def __init__(self, edges, is_directed, check_results=False, num_nodes=None):
-        self.raw_edges = edges.copy()
-        mapped_edges, self.mapping, self.unmapping = relabel_edges(edges)
-        self.out_num_nodes = num_nodes
-        num_nodes = len(self.unmapping)
-        super().__init__(mapped_edges, is_directed, check_results=check_results, num_nodes=num_nodes)
+    """A FastGraph that removes degree zero nodes through relabeling."""
+    def __init__(self, raw_edges, is_directed, mapped_edges, mapping, unmapping, global_num_nodes, internal_num_nodes=None):
+        self.raw_edges = raw_edges
+        self.mapping = mapping
+        self.unmapping = unmapping
+        self.global_num_nodes = global_num_nodes
 
-    @property
-    def edges(self):
-        """Returns edges in their original coordinates"""
-        return apply_mapping_to_edges(super().edges, self.unmapping)
+        super().__init__(mapped_edges, is_directed, num_nodes=internal_num_nodes)
 
+    @classmethod
+    def from_edges(cls, edges, is_directed, global_num_nodes=None):
+        raw_edges = edges.copy()
+        mapped_edges, mapping, unmapping = relabel_edges(edges)
+        internal_num_nodes = len(unmapping)
+        return cls(raw_edges, is_directed, mapped_edges, mapping, unmapping, global_num_nodes=global_num_nodes, internal_num_nodes=internal_num_nodes)
+
+        
     @property
-    def internal_edges(self):
+    def local_edges(self):
         """Returns the edges of the underlying FastGraph object"""
         return super().edges
+    
+    @property
+    def global_edges(self):
+        """Returns the edges in the global name space"""
+        return apply_mapping_to_edges(super().edges, self.unmapping)
 
     @property
     def sparse_out_degree(self):
@@ -196,19 +206,31 @@ class MappedGraph(FastGraph):
     def to_coo(self):
         """Returns a sparse coo-matrix representation of the graph"""
         from scipy.sparse import coo_matrix # pylint: disable=import-outside-toplevel
-        edges = self.edges
+        edges = self.global_edges
         if not self.is_directed:
             edges = make_directed(edges)
 
-        return coo_matrix((np.ones(edges.shape[0]), (edges[:,0], edges[:,1])), shape = (self.out_num_nodes, self.out_num_nodes))
+        return coo_matrix((np.ones(edges.shape[0]), (edges[:,0], edges[:,1])), shape = (self.global_num_nodes, self.global_num_nodes))
+    
+    def switch_directions(self):
+        """Creates a FastGraph object from a graphtool graph"""
+        from nestmodel.utils import switch_in_out
+        return MappedGraph(switch_in_out(self.raw_edges),
+                           self.is_directed,
+                           switch_in_out(self.edges),
+                           mapping=self.mapping,
+                           unmapping=self.unmapping,
+                           global_num_nodes=self.global_num_nodes,
+                           internal_num_nodes=self.num_nodes)
 
 
-def _get_rolling_max_degree(l_degrees, l_mapping, r, num_nodes):
+
+def _get_rolling_max_degree(list_degrees, list_mapping, r, num_nodes):
 
     # r = 1 is that we we look at the current and the next slice
     # thus need to increase r by 1 to get buf size
     buff_size = r+1
-    T = len(l_degrees)
+    T = len(list_degrees)
     max_degree = np.zeros(num_nodes, dtype=np.uint32)
     curr_degree = np.zeros(num_nodes, dtype=np.uint32)
     roll_degree = np.zeros((num_nodes, buff_size), dtype=np.uint32)
@@ -216,8 +238,8 @@ def _get_rolling_max_degree(l_degrees, l_mapping, r, num_nodes):
     first_index = np.zeros(num_nodes, dtype=np.uint32)
     last_index = np.zeros(num_nodes, dtype=np.uint32)
     for t in range(T):
-        mapping = l_mapping[t]
-        degrees = l_degrees[t]
+        mapping = list_mapping[t]
+        degrees = list_degrees[t]
         #print(max_degree)
         #print(curr_degree)
         #print(roll_degree)
@@ -235,16 +257,19 @@ def _get_rolling_max_degree(l_degrees, l_mapping, r, num_nodes):
     return max_degree
 
 
-def get_rolling_max_degree(l_degrees, l_mapping, is_directed, r, num_nodes):
-    """Computes the rolling total degree of a node (i.e. summed over time)"""
+def get_rolling_max_degree(l_degrees, l_mapping, is_directed, h, num_nodes):
+    """Computes the maximum degree of a node (i.e. summed over time) for a finite horizon h
+    
+    
+    """
     assert len(l_degrees[0])==len(l_mapping)
-    assert r >= 0
+    assert h >= 0
     if is_directed:
-        max_in_degree = _get_rolling_max_degree(l_degrees[0], l_mapping, r, num_nodes)
-        max_out_degree = _get_rolling_max_degree(l_degrees[1], l_mapping, r, num_nodes)
+        max_in_degree = _get_rolling_max_degree(l_degrees[0], l_mapping, h, num_nodes)
+        max_out_degree = _get_rolling_max_degree(l_degrees[1], l_mapping, h, num_nodes)
         return max_in_degree, max_out_degree
     else:
-        max_degree = _get_rolling_max_degree(l_degrees[0], l_mapping, r, num_nodes)
+        max_degree = _get_rolling_max_degree(l_degrees[0], l_mapping, h, num_nodes)
         return max_degree, max_degree
 
 
@@ -303,11 +328,13 @@ def get_visible_nodes_per_time(slices, num_nodes):
 
 
 
+
+
 class SparseTempFastGraph():
     """A class to model temporal graphs through time slices
     Each timeslices contains only those nodes that have non-zero degree
     """
-    def __init__(self, edges, is_directed, num_nodes=None):
+    def __init__(self, edges, is_directed, num_nodes=None, times=None):
         self.num_times=len(edges)
         for edges_t in edges:
             assert edges_t.shape[0]>0
@@ -316,18 +343,28 @@ class SparseTempFastGraph():
         if num_nodes is None:
             num_nodes = max(map(np.max, edges)) + 1
         self.num_nodes = num_nodes
-        self.slices=[MappedGraph(v, is_directed=is_directed, num_nodes=num_nodes) for v in edges]
+        self.slices=[MappedGraph.from_edges(edges_t, is_directed=is_directed, global_num_nodes=num_nodes) for edges_t in edges]
         self.is_directed = is_directed
+        self.times=times
+    
+    @staticmethod
+    def from_temporal_edges(E, is_directed, num_nodes=None):
+        """Creates a sparse temporal graph from temporal edges"""
+        assert len(E.shape)==2
+        assert E.shape[1]==3
+        edges, times = partition_temporal_edges(E)
+        return SparseTempFastGraph(edges, is_directed=is_directed, num_nodes=num_nodes, times=times)
+
 
 
     def reverse_slice_direction(self):
         """Returns a new graph with all edge directions reversed within time slices"""
-        reversed_edges = [G.switch_directions().edges for G in self.slices]
+        reversed_edges = [G.switch_directions().global_edges for G in self.slices]
         return SparseTempFastGraph(reversed_edges, is_directed=self.is_directed, num_nodes=self.num_nodes)
 
     def reverse_time(self):
         """Returns a new graph with time reversed"""
-        reversed_edges = [G.edges for G in reversed(self.slices)]
+        reversed_edges = [G.global_edges for G in reversed(self.slices)]
         return SparseTempFastGraph(reversed_edges, is_directed=self.is_directed, num_nodes=self.num_nodes)
 
 
@@ -352,7 +389,7 @@ class SparseTempFastGraph():
         node_identifier = np.empty((num_prev_nodes[-1],2), dtype=np.int32)
         for t in range(T-1, -1, -1):
             g = self.slices[t]
-            local_edges = g.internal_edges
+            local_edges = g.local_edges
             if not self.is_directed:
                 local_edges = make_directed(local_edges)
 
