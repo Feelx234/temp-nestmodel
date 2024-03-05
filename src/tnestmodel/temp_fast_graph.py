@@ -1,6 +1,7 @@
 
 from typing import Tuple
 import numpy as np
+import warnings
 from nestmodel.fast_graph import FastGraph
 from nestmodel.utils import make_directed
 from tnestmodel.utils import partition_temporal_edges
@@ -181,12 +182,12 @@ class MappedGraph(FastGraph):
         internal_num_nodes = len(unmapping)
         return cls(raw_edges, is_directed, mapped_edges, mapping, unmapping, global_num_nodes=global_num_nodes, internal_num_nodes=internal_num_nodes)
 
-        
+
     @property
     def local_edges(self):
         """Returns the edges of the underlying FastGraph object"""
         return super().edges
-    
+
     @property
     def global_edges(self):
         """Returns the edges in the global name space"""
@@ -211,7 +212,7 @@ class MappedGraph(FastGraph):
             edges = make_directed(edges)
 
         return coo_matrix((np.ones(edges.shape[0]), (edges[:,0], edges[:,1])), shape = (self.global_num_nodes, self.global_num_nodes))
-    
+
     def switch_directions(self):
         """Creates a FastGraph object from a graphtool graph"""
         from nestmodel.utils import switch_in_out
@@ -259,8 +260,8 @@ def _get_rolling_max_degree(list_degrees, list_mapping, r, num_nodes):
 
 def get_rolling_max_degree(l_degrees, l_mapping, is_directed, h, num_nodes):
     """Computes the maximum degree of a node (i.e. summed over time) for a finite horizon h
-    
-    
+
+
     """
     assert len(l_degrees[0])==len(l_mapping)
     assert h >= 0
@@ -345,8 +346,11 @@ class SparseTempFastGraph():
         self.num_nodes = num_nodes
         self.slices=[MappedGraph.from_edges(edges_t, is_directed=is_directed, global_num_nodes=num_nodes) for edges_t in edges]
         self.is_directed = is_directed
-        self.times=times
-    
+        if times is None:
+            self.times=np.arange(len(self.slices))
+        else:
+            self.times=times
+
     @staticmethod
     def from_temporal_edges(E, is_directed, num_nodes=None):
         """Creates a sparse temporal graph from temporal edges"""
@@ -366,6 +370,53 @@ class SparseTempFastGraph():
         """Returns a new graph with time reversed"""
         reversed_edges = [G.global_edges for G in reversed(self.slices)]
         return SparseTempFastGraph(reversed_edges, is_directed=self.is_directed, num_nodes=self.num_nodes)
+
+    def compute_for_each_slice(self, func, min_size=None, fill_value=None, call_with_time=True, dtype=np.float64, auto_resize=True):
+        """Helper functions that allows to compute a function for each slice
+
+        If call_with_time=True two arguments are provided (the graph G, and time t)
+        If call_with_time=False one argument is provided (the graph G)
+
+        the function automatically unpacks provided arguments
+
+        """
+        if fill_value is None:
+            # use nans for floats and zeros for ints
+            if dtype == np.float32 or dtype==np.float64:
+                fill_value = np.nan
+            else:
+                fill_value = 0
+        if min_size is None:
+            min_size = 1
+        arr = np.full((len(self.slices), min_size), fill_value=fill_value, dtype=dtype)
+        has_warned = False
+        for i, (G, t) in enumerate(zip(self.slices, self.times)):
+            if call_with_time:
+                func_values = func(G, t)
+            else:
+                func_values = func(G)
+            if isinstance(func_values, (list, tuple, np.ndarray)):
+                if len(func_values) <= arr.shape[1]:
+                    arr[i, :len(func_values)] = func_values
+                else:
+                    if auto_resize:
+                        tmp_arr = np.full((len(self.slices), len(func_values)),fill_value=fill_value, dtype=arr.dtype)
+                        tmp_arr[:i,arr.shape[1]] = arr
+                        tmp_arr[i,:] = func_values
+                        arr = tmp_arr
+                    else:
+                        raise ValueError(f"Inconsistent shape found for timeslice {i} at time {t}")
+            elif np.isscalar(func_values):
+                arr[i,0] = func_values
+                if arr.shape[1]!=1 and not has_warned:
+                    has_warned = True
+                    warnings.warn(f"Inconsistent shape found for timeslice {i} at time {t}", RuntimeWarning)
+            else:
+                raise ValueError(f"func returned the type {type(func_values)} which are currently not supported")
+        if arr.shape[1]==1:
+            arr = arr.ravel()
+        return self.times, arr
+
 
 
     def get_sparse_causal_completion(self, return_temporal_info=False) -> Tuple[FastGraph, Tuple[int, int]]:

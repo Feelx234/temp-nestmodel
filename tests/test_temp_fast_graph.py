@@ -256,5 +256,28 @@ class TestTFastGraphHelpers(unittest.TestCase):
             assert_array_equal(res1, expected_result, err_msg=f"h={h}")
 
 
+
+
+
+class TestTFastGraphUtility(unittest.TestCase):
+    def test_compute_for_each_slice(self):
+        E = np.array([[0,1,0],[0,2,0], [1,2,1]], dtype=np.int64)
+        G = SparseTempFastGraph.from_temporal_edges(E, is_directed=False)
+        def num_edges(G, t):
+            return len(G.edges)
+        times, num_edges = G.compute_for_each_slice(num_edges, dtype=np.int64)
+        assert_array_equal(times, [0,1])
+        assert_array_equal(num_edges, [2,1])
+
+    def test_compute_for_each_slice2(self):
+        E = np.array([[0,1,3],[0,2,3], [1,2,12]], dtype=np.int64)
+        G = SparseTempFastGraph.from_temporal_edges(E, is_directed=False)
+        def num_edges(G, t):
+            return len(G.edges)*t
+        times, num_edges = G.compute_for_each_slice(num_edges, dtype=np.int64)
+        assert_array_equal(times, [3,12])
+        assert_array_equal(num_edges, [6,12])
+
+
 if __name__ == '__main__':
     unittest.main()
