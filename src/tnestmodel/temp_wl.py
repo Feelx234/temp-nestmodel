@@ -92,6 +92,7 @@ def compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed 
 
     colors = np.zeros(total_active_nodes, dtype=np.uint64)
     out_colors = [colors]
+    list_cumsum_hashes = [colors]
 
     if d > 0:
         max_num_iterations = d
@@ -99,14 +100,112 @@ def compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed 
         max_num_iterations  = total_active_nodes
     num_prev_colors = len(np.unique(colors))
     for _ in range(max_num_iterations):
-        new_colors = one_round(hashes, out_colors[-1], num_prev_colors, E_out, num_active_per_node, total_active_nodes, times_for_active, h)
+        new_colors, cumsum_hashes = one_round(hashes, out_colors[-1], num_prev_colors, E_out, num_active_per_node, total_active_nodes, times_for_active, h)
+
         max_colors = new_colors.max()+1
         if max_colors==num_prev_colors: # stable colors reached, terminate
             break
         num_prev_colors = max_colors
         out_colors.append(new_colors)
+        list_cumsum_hashes.append(cumsum_hashes)
 
     return out_colors, repeat_active_nodes(num_active_per_node), times_for_active
+
+
+
+class TemporalColorsStruct:
+    def __init__(self, colors_per_round, cumsum_hashes_per_round, hashes, num_active_per_node, E, E_active, times_for_active):
+        self.colors_per_round=colors_per_round
+        self.cumsum_hashes_per_round=cumsum_hashes_per_round
+        self.hashes = hashes
+        self.num_active_per_node = num_active_per_node
+        assert len(E)==len(E_active)
+        self.E = E
+        self.E_active = E_active
+        self.times_for_active = times_for_active
+
+        self.colors_for_active = None
+        self.current_colors = None
+        self.cumsum_hashes = None
+        self.d = None
+        self.t = None
+        self.base_active_node = cumsum_from_zero(self.num_active_per_node, full=True)
+        self.left_active_node = cumsum_from_zero(self.num_active_per_node, full=False)
+        self.right_active_node = self.left_active_node.copy()
+        self.num_nodes = len(num_active_per_node)
+        self.left_e_index = None
+        self.right_e_index = None
+        self.hash_dict = None
+
+    def prepare(self, d, h):
+        self.d = d
+        self.h = h
+        self.t = -1
+        if d > 0:
+            self.prev_colors = self.colors_per_round[d-1]
+            self.cumsum_hashes = self.cumsum_hashes_per_round[d-1]
+        
+        self.current_colors = np.zeros(self.num_nodes, dtype=np.int64)
+        self.left_e_index = 0
+        self.right_e_index = 0
+        self.hash_dict = {}
+
+    def advance_time(self, t):
+        assert self.t < t, "Can only move forward in time, if you want to go to an earlier time use .prepare again"
+
+        self.t = t
+
+        changed_nodes = set()
+
+        # process edges no longer visible
+        i = self.left_e_index
+        while i < len(self.E):
+            #(u_act, v_act, t_act) = self.E_active[i,:]
+            (u, v, t_E) = self.E[i,:]
+            #assert t_act==t_E
+            if t_E >= t:
+                # we arrived at edges that can be potentially seen
+                break
+            self.left_active_node[v]+=1
+            changed_nodes.add(v)
+            i+=1
+        self.left_e_index = i
+
+        # process newly visible edges
+        i = self.right_e_index
+        while i < len(self.E):
+            #(u_act, v_act, t_act) = self.E_active[i,:]
+            (u, v, t_E) = self.E[i,:]
+            
+            if t_E > t + self.h:
+                # we no longer see this edge or any future edges, break
+                break
+            self.right_active_node[v]+=1
+            changed_nodes.add(v)
+            i+=1
+        self.right_e_index = i
+
+        for v in changed_nodes:
+            left = self.right_active_node[v]
+            right = self.right_active_node[v]
+            if  left == right:
+                self.current_colors[v] = 0 # this node does not see any degree
+            else:
+                if right == self.base_active_node[v+1]:
+                    the_hash = self.cumsum_hashes[left] # right is zero hash
+                else:
+                    the_hash = self.cumsum_hashes[left] - self.cumsum_hashes[right]
+                #hash += self.prev_color[v]
+                if the_hash in self.hash_dict:
+                    self.current_colors[v] = self.hash_dict[the_hash]
+
+                else:
+                    new_color = len(self.hash_dict)
+                    self.hash_dict[the_hash]= new_color
+                    
+
+
+
 
 
 
@@ -137,16 +236,18 @@ def one_round(hashes : np.ndarray, colors : np.ndarray, num_colors : int, E_acti
             for i in range(n+d-2, n-1, -1):
                 simple_hashes[i]+=simple_hashes[i+1]
         n+=d
+    
     cumsum_hashes = simple_hashes
+    cumsum_hashes_out = cumsum_hashes.copy()
     if h == -1:
         agg_hashes = cumsum_hashes
     else:
         agg_hashes = adjust_hashes_for_finite_horizon(cumsum_hashes, num_active_per_node, times, h)
 
-    # if external colors are available
-    if num_colors > 1:
-        for i, c in enumerate(colors):
-            agg_hashes[i]+=hashes[c+np.uint64(len(colors))]
+    ## if external colors are available
+    #if num_colors > 1:
+    #    for i, c in enumerate(colors):
+    #        agg_hashes[i]+=hashes[c+np.uint64(len(colors))]
     # sort hashes, such that similar hashes are adjacent
     order = np.argsort(agg_hashes)
 
@@ -162,7 +263,7 @@ def one_round(hashes : np.ndarray, colors : np.ndarray, num_colors : int, E_acti
             current_color += 1
             current_hash = agg_hashes[i]
             out_colors[i] = current_color
-    return out_colors
+    return out_colors, cumsum_hashes_out
 
 
 @njit(cache=True)
