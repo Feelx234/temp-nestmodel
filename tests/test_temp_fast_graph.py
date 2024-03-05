@@ -12,17 +12,23 @@ from tnestmodel.temp_fast_graph import get_rolling_max_degree
 
 class TestTFastGraph(unittest.TestCase):
     def temp_fast_graph_test(self, l_edges, num_nodes, result_edges, is_directed):
+
         l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
-        result_edges = np.array(result_edges, dtype=np.uint32)
         G_t = TempFastGraph(l_edges, is_directed=is_directed)
+        result_edges = np.array(result_edges, dtype=np.uint32)
+        
         G = G_t.get_causal_completion()
         self.assertEqual(G.num_nodes, num_nodes)
         assert_array_equal(result_edges, G.edges)
 
     def sparse_temp_fast_graph_test(self, l_edges, num_nodes, result_edges, is_directed):
-        l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
+        if isinstance(l_edges, np.ndarray) and l_edges.shape[1]==3:
+            G_t = SparseTempFastGraph.from_temporal_edges(l_edges, is_directed=is_directed)
+        else:
+            l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
+            G_t = SparseTempFastGraph(l_edges, is_directed=is_directed)
         result_edges = np.array(result_edges, dtype=np.uint32)
-        G_t = SparseTempFastGraph(l_edges, is_directed=is_directed)
+        
         G = G_t.get_sparse_causal_completion()
         self.assertEqual(G.num_nodes, num_nodes)
         assert_array_equal(result_edges, G.edges)
@@ -103,6 +109,12 @@ class TestTFastGraph(unittest.TestCase):
                                   [[0,1], [1, 3], [2, 3]],
                                   is_directed = True
                                   )
+        self.sparse_temp_fast_graph_test(np.array([[0,1,0],
+                                            [1,2,1]],dtype=int),
+                                  4,
+                                  [[0,1], [1, 3], [2, 3]],
+                                  is_directed = True
+                                  )
 
 
     def test_sparse_big_graph_2(self):
@@ -119,6 +131,13 @@ class TestTFastGraph(unittest.TestCase):
         self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
                                    [[1,2]],
                                    [[0,1], [1,2]]],
+                                  6,
+                                  [[0, 1], [0, 4], [1, 5], [1,5], [1,5], [2, 5], [2,5], [3,4], [4,5]],
+                                  is_directed = True
+                                  )
+        self.sparse_temp_fast_graph_test(np.array([[0,1,0], [1,2,0],
+                                   [1,2,1],
+                                   [0,1,2], [1,2,2]],dtype=int),
                                   6,
                                   [[0, 1], [0, 4], [1, 5], [1,5], [1,5], [2, 5], [2,5], [3,4], [4,5]],
                                   is_directed = True
