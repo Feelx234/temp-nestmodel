@@ -5,6 +5,7 @@ import numpy as np
 from nestmodel.fast_graph import FastGraph
 from nestmodel.utils import make_directed
 from tnestmodel.temp_utils import partition_temporal_edges
+from tnestmodel.temp_wl import TemporalColorsStruct, _compute_d_rounds
 
 
 class TempFastGraph():
@@ -143,7 +144,7 @@ class TempFastGraph():
 def relabel_edges(edges):
     """relabels nodes such that they start from 0 consecutively"""
     unique = np.unique(edges.ravel())
-    mapping = {key:val for key, val in zip(unique, range(len(unique)))}
+    mapping = {key : val for key, val in zip(unique, range(len(unique)))}
     unmapping  = unique#{val:key for key, val in mapping.items()}
     out_edges = apply_mapping_to_edges(edges, mapping)
     return out_edges, mapping, unmapping
@@ -171,6 +172,7 @@ class MappedGraph(FastGraph):
         self.raw_edges = raw_edges
         self.mapping = mapping
         self.unmapping = unmapping
+        self.global_nodes = np.fromiter(mapping.keys(), count=len(self.mapping), dtype=np.int64)
         self.global_num_nodes = global_num_nodes
 
         super().__init__(mapped_edges, is_directed, num_nodes=internal_num_nodes)
@@ -350,6 +352,7 @@ class SparseTempFastGraph():
             self.times=np.arange(len(self.slices))
         else:
             self.times=times
+        self.h = None
 
     @staticmethod
     def from_temporal_edges(E, is_directed, num_nodes=None):
@@ -359,7 +362,19 @@ class SparseTempFastGraph():
         edges, times = partition_temporal_edges(E)
         return SparseTempFastGraph(edges, is_directed=is_directed, num_nodes=num_nodes, times=times)
 
-
+    def to_temporal_edges(self):
+        """Returns the graph represented as temporal edges
+        a temporal edge is a triple (u->v, t)
+        """
+        total_number_of_edges = sum(len(G.edges) for G in self.slices)
+        E = np.empty((total_number_of_edges, 3), dtype=np.int64)
+        n = 0
+        for t, G in zip(self.times, self.slices):
+            partial_edges = G.global_edges
+            E[n:n+len(partial_edges), 0:2] = partial_edges
+            E[n:n+len(partial_edges), 2] = t
+            n+=len(partial_edges)
+        return E
 
     def reverse_slice_direction(self):
         """Returns a new graph with all edge directions reversed within time slices"""
@@ -370,6 +385,49 @@ class SparseTempFastGraph():
         """Returns a new graph with time reversed"""
         reversed_edges = [G.global_edges for G in reversed(self.slices)]
         return SparseTempFastGraph(reversed_edges, is_directed=self.is_directed, num_nodes=self.num_nodes)
+
+    def get_temporal_wl_struct(self, h=-1, d=-1, seed=0, kind="broadcast"):
+        """Computes the temporal WL and assigns it to each graph"""
+        edges = self.to_temporal_edges()
+        if not self.is_directed:
+            edges2 = np.vstack((edges[:,1], edges[:,0], edges[:,2])).T
+            edges = np.vstack((edges, edges2))
+
+        rev_edges = np.vstack((edges[:,1], edges[:,0], edges[:,2])).T
+
+
+        if kind=="broadcast":
+            return TemporalColorsStruct(*_compute_d_rounds(rev_edges, self.num_nodes, d=d, h=h, seed=seed))
+        elif kind=="receive":
+            raise NotImplementedError()
+
+
+    def assign_colors_to_slices(self, h=-1, d=-1, seed=0, sorting_strategy=None, kind="broadcast", mode="global"):
+        """Assign the temporal wl colors to individual slices"""
+        s = self.get_temporal_wl_struct(h, d, seed, kind)
+
+        max_d = len(s.colors_per_round)
+        print("max_d", max_d)
+        for d_iter in range(max_d):
+            s.reset_colors(d_iter, h, mode=mode)
+            for t, G in zip(self.times, self.slices):
+                if G.base_partitions is None:
+                    G.base_partitions = []
+                s.advance_time(t)
+                G.base_partitions.append(s.current_colors[G.global_nodes])
+        for G in self.slices:
+            G.base_partitions = np.array(G.base_partitions, dtype=np.uint32)
+            G.reset_edges_ordered(sorting_strategy)
+        self.h = h
+        return s
+
+    def rewire_slices(self, depth, method, **kwargs):
+        """Rewires all temporal slices using previously assigned colors"""
+        assert not self.h is None, "You need to provide wl colors"
+        for G in self.slices:
+             G.rewire(depth=depth, method=method, **kwargs)
+
+
 
     def compute_for_each_slice(self, func, min_size=None, fill_value=None, call_with_time=True, dtype=np.float64, auto_resize=True):
         """Helper functions that allows to compute a function for each slice

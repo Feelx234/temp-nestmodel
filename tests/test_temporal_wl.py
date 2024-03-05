@@ -8,10 +8,11 @@ from numpy.testing import assert_array_equal
 
 from tnestmodel.temp_wl import compute_d_rounds, _compute_d_rounds, TemporalColorsStruct
 from tnestmodel.wl_utils import assert_partitions_equivalent
+from tnestmodel.temp_fast_graph import SparseTempFastGraph
 
 E1 = np.array([(1,0,0), (1,2,1), (3,1,2), (2,1,2)], dtype=np.int64)
 E2 = np.array([(1,0,0), (2,1,1), (3,2,2), (2,1,3), (3,2,4)], dtype=np.int64)
-
+E3 = np.vstack((E2, np.array([(0,1,0), (1,2,1), (2,3,2), (1,2,3), (2,3,4)], dtype=np.int64)))
 nodes1 = [0, 1, 1, 1, 2, 2, 3]
 times1 = [0, 0, 1, 2, 1, 2, 2]
 nodes2 = [0, 1, 1, 1, 2, 2, 2, 2, 3, 3]
@@ -198,6 +199,163 @@ class TestTemporalStruct(unittest.TestCase):
         s.reset_colors(d=2, h=h)
         self.check_partitions_agree(s, range(5), solutions, check_global=False)
 
+
+
+class TestTFastGraphWL(unittest.TestCase):
+    def test_assign_colors_to_slices(self):
+        """Simple test with two edges per time and 4 times in total"""
+        tmp = E2.copy()
+        tmp[:, :2]+=4
+        all_edges = np.vstack((E2, tmp))
+        G = SparseTempFastGraph.from_temporal_edges(all_edges, is_directed=True, num_nodes=8)
+        G.assign_colors_to_slices(h=1, d=-1)
+        solutions = [
+                [[0, 0, 0, 0],
+                [0, 1, 0, 1],
+                [0, 1, 0, 1]],
+                [[0, 0, 0, 0],
+                [0, 1, 0, 1],
+                [0, 1, 0, 1]],
+                [[0, 0, 0, 0],
+                [1, 1, 1, 1],
+                [1, 2, 1, 2]],
+                [[0, 0, 0, 0],
+                [0, 1, 0, 1],
+                [0, 1, 0, 1]],
+                [[0, 0, 0, 0],
+                [0, 1, 0, 1],
+                [0, 1, 0, 1]]
+        ]
+        for G_t, sol in zip(G.slices, solutions):
+            assert_array_equal(sol, G_t.base_partitions)
+
+
+
+
+    def test_assign_colors_to_slices_undir(self):
+        """Simple test with two edges per time and 4 times in total"""
+        G = SparseTempFastGraph.from_temporal_edges(E2, is_directed=False, num_nodes=8)
+        G.assign_colors_to_slices(h=1, d=-1)
+        solutions = [
+                [[0, 0],
+                [1, 2],
+                [1, 2],
+                [1, 2]],
+                [[0, 0],
+                [1, 2],
+                [1, 4],
+                [4, 5]],
+                [[0, 0],
+                [2, 1],
+                [4, 1],
+                [5, 4]],
+                [[0, 0],
+                [1, 2],
+                [1, 4],
+                [4, 6]],
+                [[0, 0],
+                [1, 1],
+                [3, 3],
+                [7, 7]],
+        ]
+        for G_t, sol in zip(G.slices, solutions):
+            assert_array_equal(sol, G_t.base_partitions)
+            #print("\t"+repr(G_t.base_partitions)[6:-14])
+            #print(G_t.block_indices)
+
+
+
+
+
+    def test_assign_colors_to_slices_2(self):
+        """More elaborate test with two directed edges in opposite directions"""
+        G = SparseTempFastGraph.from_temporal_edges(E3, is_directed=True, num_nodes=8)
+        G.assign_colors_to_slices(h=1, d=-1)
+        solutions = [
+                [[0, 0],
+                [1, 2],
+                [1, 2],
+                [1, 2]],
+                [[0, 0],
+                [1, 2],
+                [1, 4],
+                [4, 5]],
+                [[0, 0],
+                [2, 1],
+                [4, 1],
+                [5, 4]],
+                [[0, 0],
+                [1, 2],
+                [1, 4],
+                [4, 6]],
+                [[0, 0],
+                [1, 1],
+                [3, 3],
+                [7, 7]],
+        ]
+        for G_t, sol in zip(G.slices, solutions):
+            assert_array_equal(sol, G_t.base_partitions)
+            #print("\t"+repr(G_t.base_partitions)[6:-14])
+            #print(G_t.block_indices)
+
+
+    def test_assign_colors_to_slices_3(self):
+        """More elaborate test with two directed edges in opposite directions"""
+        tmp = E3.copy()
+        tmp[:, :2]+=4
+        all_edges = np.vstack((E3, tmp))
+        G = SparseTempFastGraph.from_temporal_edges(all_edges, is_directed=True, num_nodes=8)
+        G.assign_colors_to_slices(h=1, d=-1)
+        partitions = [
+                [[0, 0, 0, 0],
+                [1, 2, 1, 2],
+                [1, 2, 1, 2],
+                [1, 2, 1, 2]],
+                [[0, 0, 0, 0],
+                [1, 2, 1, 2],
+                [1, 4, 1, 4],
+                [4, 5, 4, 5]],
+                [[0, 0, 0, 0],
+                [2, 1, 2, 1],
+                [4, 1, 4, 1],
+                [5, 4, 5, 4]],
+                [[0, 0, 0, 0],
+                [1, 2, 1, 2],
+                [1, 4, 1, 4],
+                [4, 6, 4, 6]],
+                [[0, 0, 0, 0],
+                [1, 1, 1, 1],
+                [3, 3, 3, 3],
+                [7, 7, 7, 7]],
+        ]
+        edges_sol = [
+            [[0, 1],
+            [2, 3],
+            [3, 2],
+            [1, 0]],
+            [[0, 1],
+            [2, 3],
+            [1, 0],
+            [3, 2]],
+            [[3, 2],
+            [1, 0],
+            [0, 1],
+            [2, 3]],
+            [[2, 3],
+            [0, 1],
+            [1, 0],
+            [3, 2]],
+            [[0, 1],
+            [2, 3],
+            [1, 0],
+            [3, 2]]
+        ]
+        for G_t, sol, edges in zip(G.slices, partitions, edges_sol):
+            assert_array_equal(sol, G_t.base_partitions)
+            assert_array_equal(edges, G_t.local_edges)
+            #print("\t"+repr(G_t.base_partitions)[6:-14])
+            #print("\t"+repr(G_t.local_edges)[6:-14])
+            #print(G_t.block_indices)
 
 if __name__ == '__main__':
     unittest.main()
