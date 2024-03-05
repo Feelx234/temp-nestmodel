@@ -16,7 +16,7 @@ class TestTFastGraph(unittest.TestCase):
         l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
         G_t = TempFastGraph(l_edges, is_directed=is_directed)
         result_edges = np.array(result_edges, dtype=np.uint32)
-        
+
         G = G_t.get_causal_completion()
         self.assertEqual(G.num_nodes, num_nodes)
         assert_array_equal(result_edges, G.edges)
@@ -28,7 +28,7 @@ class TestTFastGraph(unittest.TestCase):
             l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
             G_t = SparseTempFastGraph(l_edges, is_directed=is_directed)
         result_edges = np.array(result_edges, dtype=np.uint32)
-        
+
         G = G_t.get_sparse_causal_completion()
         self.assertEqual(G.num_nodes, num_nodes)
         assert_array_equal(result_edges, G.edges)
@@ -263,7 +263,7 @@ class TestTFastGraphUtility(unittest.TestCase):
     def test_compute_for_each_slice(self):
         E = np.array([[0,1,0],[0,2,0], [1,2,1]], dtype=np.int64)
         G = SparseTempFastGraph.from_temporal_edges(E, is_directed=False)
-        def num_edges(G, t):
+        def num_edges(G, _):
             return len(G.edges)
         times, num_edges = G.compute_for_each_slice(num_edges, dtype=np.int64)
         assert_array_equal(times, [0,1])

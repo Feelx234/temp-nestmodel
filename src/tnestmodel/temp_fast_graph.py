@@ -1,7 +1,7 @@
 
 from typing import Tuple
-import numpy as np
 import warnings
+import numpy as np
 from nestmodel.fast_graph import FastGraph
 from nestmodel.utils import make_directed
 from tnestmodel.temp_utils import partition_temporal_edges
