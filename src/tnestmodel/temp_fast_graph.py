@@ -4,7 +4,7 @@ import numpy as np
 import warnings
 from nestmodel.fast_graph import FastGraph
 from nestmodel.utils import make_directed
-from tnestmodel.utils import partition_temporal_edges
+from tnestmodel.temp_utils import partition_temporal_edges
 
 
 class TempFastGraph():

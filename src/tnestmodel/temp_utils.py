@@ -24,17 +24,21 @@ def partition_temporal_edges(E):
     """Partitions temporal edges into graphs per time"""
     time_order = np.argsort(E[:,2])
     E = E[time_order, :]
-    l = [(E[0,0], E[0,1])]
-    l.pop()
-    list_edges = [l.copy()]
-
+    
+    
     last_t = E[0,2]
+    curr_list = [(E[0,0], E[0,1])]
+    curr_list.pop()
+    empty_list = curr_list.copy()
+    list_edges = [curr_list]
     times = [last_t]
     for u,v,t in E:
         if t != last_t:
-            list_edges.append(l.copy())
+            curr_list = empty_list.copy()
+            list_edges.append(curr_list)
             last_t = t
             times.append(last_t)
-        list_edges[-1].append((u,v))
+        curr_list.append((u,v))
+ 
     list_of_arrs = [np.array(x, dtype=np.uint32) for x in list_edges]
     return list_of_arrs, times
