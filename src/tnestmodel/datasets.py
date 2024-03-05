@@ -1,6 +1,6 @@
 from pathlib import Path
 import numpy as np
-from tnestmodel.utils import temp_undir_to_directed
+from tnestmodel.temp_utils import temp_undir_to_directed
 from numba import njit
 
 
