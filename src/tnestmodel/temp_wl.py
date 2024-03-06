@@ -168,7 +168,6 @@ class TemporalColorsStruct:
         self.left_e_index = None
         self.right_e_index = None
         self.hash_dict = {}
-        self.color_count_arr = np.zeros(self.num_nodes, dtype=np.int64)
         self.mode="global"
         self.color_count_arr = np.zeros(self.num_nodes, dtype=np.int64)
         self.colorqueue = None
@@ -180,7 +179,7 @@ class TemporalColorsStruct:
         self.h = h
         self.t = -1
         if d > 0:
-            self.prev_colors = self.colors_per_round[d-1] # currently unused only needed if initial colors is supported
+            self.prev_colors = self.colors_per_round[d-1]
             self.cumsum_hashes = np.zeros_like(self.cumsum_hashes_per_round[d-1])
         if not mode is None:
             self.mode=mode
@@ -242,6 +241,8 @@ class TemporalColorsStruct:
             self.cumsum_hashes[v]+=hash_to_add
             changed_nodes.add(v)
             self.right_e_index+=1
+        changed_nodes = np.fromiter(changed_nodes, count = len(changed_nodes), dtype=np.int64)
+        changed_nodes.sort()
 
         for v in changed_nodes:
             if  self.cumsum_hashes[v]==0:

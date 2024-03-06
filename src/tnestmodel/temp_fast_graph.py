@@ -196,6 +196,11 @@ class MappedGraph(FastGraph):
         return apply_mapping_to_edges(super().edges, self.unmapping)
 
     @property
+    def base_global_edges(self):
+        """Returns the edges in the global name space"""
+        return apply_mapping_to_edges(self._edges, self.unmapping)
+
+    @property
     def sparse_out_degree(self):
         """Returns the out degree as a dictionary"""
         return to_mapping(self.out_degree, self.mapping)
@@ -362,7 +367,7 @@ class SparseTempFastGraph():
         edges, times = partition_temporal_edges(E)
         return SparseTempFastGraph(edges, is_directed=is_directed, num_nodes=num_nodes, times=times)
 
-    def to_temporal_edges(self):
+    def to_temporal_edges(self, base_edges=False):
         """Returns the graph represented as temporal edges
         a temporal edge is a triple (u->v, t)
         """
@@ -370,7 +375,10 @@ class SparseTempFastGraph():
         E = np.empty((total_number_of_edges, 3), dtype=np.int64)
         n = 0
         for t, G in zip(self.times, self.slices):
-            partial_edges = G.global_edges
+            if base_edges:
+                partial_edges = G.base_global_edges
+            else:
+                partial_edges = G.global_edges
             E[n:n+len(partial_edges), 0:2] = partial_edges
             E[n:n+len(partial_edges), 2] = t
             n+=len(partial_edges)
@@ -386,23 +394,24 @@ class SparseTempFastGraph():
         reversed_edges = [G.global_edges for G in reversed(self.slices)]
         return SparseTempFastGraph(reversed_edges, is_directed=self.is_directed, num_nodes=self.num_nodes)
 
-    def get_temporal_wl_struct(self, h=-1, d=-1, seed=0, kind="broadcast"):
+    def get_temporal_wl_struct(self, h=-1, d=-1, seed=0, kind="broadcast", base_edges=False):
         """Computes the temporal WL and assigns it to each graph"""
-        edges = self.to_temporal_edges()
+        edges = self.to_temporal_edges(base_edges=base_edges)
         if not self.is_directed:
             edges2 = np.vstack((edges[:,1], edges[:,0], edges[:,2])).T
             edges = np.vstack((edges, edges2))
-
-        rev_edges = np.vstack((edges[:,1], edges[:,0], edges[:,2])).T
+        else:
+            pass
+            #rev_edges = np.vstack((edges[:,1], edges[:,0], edges[:,2])).T
 
 
         if kind=="broadcast":
-            return TemporalColorsStruct(*_compute_d_rounds(rev_edges, self.num_nodes, d=d, h=h, seed=seed))
+            return TemporalColorsStruct(*_compute_d_rounds(edges, self.num_nodes, d=d, h=h, seed=seed))
         elif kind=="receive":
             raise NotImplementedError()
 
 
-    def assign_colors_to_slices(self, h=-1, d=-1, seed=0, sorting_strategy=None, kind="broadcast", mode="global"):
+    def assign_colors_to_slices(self, h=-1, d=-1, seed=0, sorting_strategy="auto", kind="broadcast", mode="global"):
         """Assign the temporal wl colors to individual slices"""
         s = self.get_temporal_wl_struct(h, d, seed, kind)
 
@@ -415,10 +424,16 @@ class SparseTempFastGraph():
                     G.base_partitions = []
                 s.advance_time(t)
                 G.base_partitions.append(s.current_colors[G.global_nodes])
+        if sorting_strategy == "auto":
+            if self.is_directed:
+                sorting_strategy = "source"
+            else:
+                sorting_strategy = "both"
         for G in self.slices:
             G.base_partitions = np.array(G.base_partitions, dtype=np.uint32)
             G.reset_edges_ordered(sorting_strategy)
         self.h = h
+        self.s=s
         return s
 
     def rewire_slices(self, depth, method, **kwargs):
