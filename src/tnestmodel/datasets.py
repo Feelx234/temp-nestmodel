@@ -78,6 +78,12 @@ class CSVDataset:
         E[:,0] = df[0][order]
         E[:,1] = df[1][order]
         E[:,2] = time
+        unique_edges = set(map(tuple, E))
+        E = np.array(list(unique_edges), dtype=np.int64)
+        order = np.argsort(E[:,2].ravel())
+        E= E[order, :]
+
+
         E, mapping = relabel_edges(E)
         self.mapping = mapping
         self.num_nodes = len(mapping)
@@ -135,7 +141,8 @@ datasets = [
                color="green",
                is_directed=False,
                seperator = " "),
-
+]
+other_datasets = [
     CSVDataset(name="dblp",
                abbr="dblp",
                color="cyan",
