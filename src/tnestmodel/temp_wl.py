@@ -232,8 +232,7 @@ class TemporalColorsStruct:
         while self.right_e_index < len(self.E):
             (u_act, _) = self.E_active[self.right_e_index,:]
             (_, v, t_e) = self.E[self.right_e_index,:]
-
-            if t_e > t + self.h:
+            if t_e > t + self.h + 1:
                 # we no longer see this edge or any future edges, break
                 break
             #self.right_active_node[v]+=1
@@ -276,7 +275,7 @@ class TemporalColorsStruct:
                     # use the color associated with this hash
                     self.current_colors[v] = self.hash_dict[the_hash]
                 else:
-                    # use a nre colos and make it available to other nodes by storing
+                    # use a new color and make it available to other nodes by storing
                     #  it in the hash_dict
                     new_color = self.colorqueue.popleft()
                     self.current_colors[v] = new_color
