@@ -57,6 +57,9 @@ class CSVDataset:
         self.num_edges = len(df)
         return df
 
+    def __str__(self):
+        return f"CSVDataset({self.name}, {self.is_directed})"
+
 
     def read_edges(self):
         """Returns temporal edges for dataset, edges are potentially (un)directed
