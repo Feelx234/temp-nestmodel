@@ -3,9 +3,14 @@ from typing import Tuple
 import warnings
 import numpy as np
 from nestmodel.fast_graph import FastGraph
-from nestmodel.utils import make_directed
+from nestmodel.utils import make_directed, switch_in_out
 from tnestmodel.temp_utils import partition_temporal_edges
 from tnestmodel.temp_wl import TemporalColorsStruct, _compute_d_rounds
+from tnestmodel.temp_utils import temp_undir_to_directed
+from tnestmodel.causal_completion import get_dense_identifiers, get_edges_dense_causal_completion
+
+
+
 
 
 class TempFastGraph():
@@ -59,6 +64,7 @@ class TempFastGraph():
         return wl_colors # each row is one timeslice
 
     def apply_wl_colors_to_slices(self, wl_colors):
+        """Assign wl colors to each slice"""
         wl_colors_by_slice = [[] for _ in range(len(self.slices))]
         for colors_per_depth in wl_colors:
             for i, slice_colors in enumerate(wl_colors_by_slice):
@@ -222,7 +228,7 @@ class MappedGraph(FastGraph):
 
     def switch_directions(self):
         """Creates a FastGraph object from a graphtool graph"""
-        from nestmodel.utils import switch_in_out
+
         return MappedGraph(switch_in_out(self.raw_edges),
                            self.is_directed,
                            switch_in_out(self.edges),
@@ -343,11 +349,10 @@ class SparseTempFastGraph():
     Each timeslices contains only those nodes that have non-zero degree
     """
     def __init__(self, edges, is_directed, num_nodes=None, times=None):
-        self.num_times=len(edges)
         for edges_t in edges:
             assert edges_t.shape[0]>0
             assert edges_t.shape[1]==2
-
+        self.num_times=len(edges)
         if num_nodes is None:
             num_nodes = max(map(np.max, edges)) + 1
         self.num_nodes = num_nodes
@@ -356,8 +361,10 @@ class SparseTempFastGraph():
         if times is None:
             self.times=np.arange(len(self.slices))
         else:
-            self.times=times
+            self.times=np.asanyarray(times).ravel()
+        assert self.num_times == len(self.times)
         self.h = None
+
 
     @staticmethod
     def from_temporal_edges(E, is_directed, num_nodes=None):
@@ -366,6 +373,7 @@ class SparseTempFastGraph():
         assert E.shape[1]==3
         edges, times = partition_temporal_edges(E)
         return SparseTempFastGraph(edges, is_directed=is_directed, num_nodes=num_nodes, times=times)
+
 
     def to_temporal_edges(self, base_edges=False):
         """Returns the graph represented as temporal edges
@@ -384,15 +392,18 @@ class SparseTempFastGraph():
             n+=len(partial_edges)
         return E
 
+
     def reverse_slice_direction(self):
         """Returns a new graph with all edge directions reversed within time slices"""
         reversed_edges = [G.switch_directions().global_edges for G in self.slices]
         return SparseTempFastGraph(reversed_edges, is_directed=self.is_directed, num_nodes=self.num_nodes)
 
+
     def reverse_time(self):
         """Returns a new graph with time reversed"""
         reversed_edges = [G.global_edges for G in reversed(self.slices)]
         return SparseTempFastGraph(reversed_edges, is_directed=self.is_directed, num_nodes=self.num_nodes)
+
 
     def get_temporal_wl_struct(self, h=-1, d=-1, seed=0, kind="broadcast", base_edges=False):
         """Computes the temporal WL and assigns it to each graph"""
@@ -403,7 +414,6 @@ class SparseTempFastGraph():
         else:
             pass
             #rev_edges = np.vstack((edges[:,1], edges[:,0], edges[:,2])).T
-
 
         if kind=="broadcast":
             return TemporalColorsStruct(*_compute_d_rounds(edges, self.num_nodes, d=d, h=h, seed=seed))
@@ -436,12 +446,12 @@ class SparseTempFastGraph():
         self.s=s
         return s
 
+
     def rewire_slices(self, depth, method, **kwargs):
         """Rewires all temporal slices using previously assigned colors"""
         assert not self.h is None, "You need to provide wl colors"
         for G in self.slices:
-             G.rewire(depth=depth, method=method, **kwargs)
-
+            G.rewire(depth=depth, method=method, **kwargs)
 
 
     def compute_for_each_slice(self, func, min_size=None, fill_value=None, call_with_time=True, dtype=np.float64, auto_resize=True):
@@ -489,6 +499,20 @@ class SparseTempFastGraph():
         if arr.shape[1]==1:
             arr = arr.ravel()
         return self.times, arr
+
+
+    def get_dense_causal_completion(self, h=-1):
+        """Return the dense causal completion"""
+        E_temp = self.to_temporal_edges()
+        if not self.is_directed:
+            E_temp = temp_undir_to_directed(E_temp)
+        E_out = get_edges_dense_causal_completion(E_temp, self.times, self.num_nodes, h=h)
+        G = FastGraph(E_out, is_directed=True, num_nodes=len(self.times)*self.num_nodes)
+        G.identifiers = get_dense_identifiers(self.times, self.num_nodes)
+        return G
+
+
+
 
 
 

@@ -7,7 +7,8 @@ from tnestmodel.temp_fast_graph import get_rolling_max_degree
 
 
 
-
+def to_edge_sets(e1, e2):
+    return set(map(tuple, e1)), set(map(tuple, e2))
 
 
 class TestTFastGraph(unittest.TestCase):
@@ -21,17 +22,28 @@ class TestTFastGraph(unittest.TestCase):
         self.assertEqual(G.num_nodes, num_nodes)
         assert_array_equal(result_edges, G.edges)
 
-    def sparse_temp_fast_graph_test(self, l_edges, num_nodes, result_edges, is_directed):
+    def sparse_temp_fast_graph_test(self, l_edges, num_nodes, result_edges, is_directed, dense_edges=None, horizons=(-1,)):
         if isinstance(l_edges, np.ndarray) and l_edges.shape[1]==3:
             G_t = SparseTempFastGraph.from_temporal_edges(l_edges, is_directed=is_directed)
         else:
             l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
             G_t = SparseTempFastGraph(l_edges, is_directed=is_directed)
         result_edges = np.array(result_edges, dtype=np.uint32)
-
-        G = G_t.get_sparse_causal_completion()
-        self.assertEqual(G.num_nodes, num_nodes)
-        assert_array_equal(result_edges, G.edges)
+        with self.subTest(causal_completion="sparse"):
+            G = G_t.get_sparse_causal_completion()
+            self.assertEqual(G.num_nodes, num_nodes)
+            # print("sparse", repr(G.edges))
+            assert_array_equal(result_edges, G.edges)
+            del G
+        with self.subTest(causal_completion="dense"):
+            self.assertEqual(len(dense_edges), len(horizons))
+            for d_edges, h in zip(dense_edges, horizons):
+                with self.subTest(horizon=h):
+                    G_d = G_t.get_dense_causal_completion(h=h)
+                    self.assertEqual(G_d.num_nodes, G_t.num_nodes*G_t.num_times)
+                    self.assertTupleEqual(G_d.identifiers.shape, (G_t.num_nodes*G_t.num_times, 2))
+                    #print(repr(G_d.edges))
+                    self.assertSetEqual(*to_edge_sets(d_edges, G_d.edges))
 
     def test_edges(self):
         edges = np.array([[0,1]], dtype=np.uint32)
@@ -67,7 +79,7 @@ class TestTFastGraph(unittest.TestCase):
                                    [[1,2]]],
                                   6,
                                   [[0,1], [1, 5], [4,5]],
-                                  is_directed = True
+                                  is_directed = True,
                                   )
 
 
@@ -103,18 +115,38 @@ class TestTFastGraph(unittest.TestCase):
 
     ###### SPARSE BELOW #####
     def test_sparse_big_graph_1(self):
-        self.sparse_temp_fast_graph_test([[[0,1]],
-                                   [[1,2]]],
-                                  4,
-                                  [[0,1], [1, 3], [2, 3]],
-                                  is_directed = True
-                                  )
-        self.sparse_temp_fast_graph_test(np.array([[0,1,0],
-                                            [1,2,1]],dtype=int),
-                                  4,
-                                  [[0,1], [1, 3], [2, 3]],
-                                  is_directed = True
-                                  )
+        with self.subTest(from_="graphs"):
+            self.sparse_temp_fast_graph_test([[[0,1]],
+                                    [[1,2]]],
+                                    4,
+                                    [[0,1], [1, 3], [2, 3]],
+                                    is_directed = True,
+                                    dense_edges=[[[0, 1],
+                                                  [4, 5]],
+                                                  [[0, 1],
+                                                  [1, 5],
+                                                  [4, 5]],
+                                                  [[0, 1],
+                                                  [1, 5],
+                                                  [4, 5]],],
+                                    horizons=[0, -1, 1]
+                                    )
+        with self.subTest(from_="edges"):
+            self.sparse_temp_fast_graph_test(np.array([[0,1,0],
+                                                [1,2,1]],dtype=int),
+                                    4,
+                                    [[0,1], [1, 3], [2, 3]],
+                                    is_directed = True,
+                                    dense_edges=[[[0, 1],
+                                                  [4, 5]],
+                                                  [[0, 1],
+                                                  [1, 5],
+                                                  [4, 5]],
+                                                  [[0, 1],
+                                                  [1, 5],
+                                                  [4, 5]],],
+                                    horizons=[0, -1, 1]
+                                    )
 
 
     def test_sparse_big_graph_2(self):
@@ -123,33 +155,178 @@ class TestTFastGraph(unittest.TestCase):
                                    [[1,2]]],
                                   5,
                                   [[0,1], [1, 4], [1,4], [2,4], [2,4], [3,4]],
-                                  is_directed = True
+                                  is_directed = True,
+                                  dense_edges= [[[0, 1],
+                                                 [4, 5],
+                                                 [7, 8]],
+                                                [[0, 1],
+                                                 [1, 5],
+                                                 [4, 5],
+                                                 [4, 8],
+                                                 [7, 8]],
+                                                 [[0, 1],
+                                                 [1, 5],
+                                                 [4, 5],
+                                                 [1, 8],
+                                                 [4, 8],
+                                                 [7, 8]],
+                                                 [[0, 1],
+                                                 [1, 5],
+                                                 [4, 5],
+                                                 [1, 8],
+                                                 [4, 8],
+                                                 [7, 8]],],
+                                    horizons=[0,1,2,-1]
                                   )
 
 
     def test_sparse_big_graph_3(self):
-        self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
-                                   [[1,2]],
-                                   [[0,1], [1,2]]],
-                                  6,
-                                  [[0, 1], [0, 4], [1, 5], [1,5], [1,5], [2, 5], [2,5], [3,4], [4,5]],
-                                  is_directed = True
-                                  )
-        self.sparse_temp_fast_graph_test(np.array([[0,1,0], [1,2,0],
-                                   [1,2,1],
-                                   [0,1,2], [1,2,2]],dtype=int),
-                                  6,
-                                  [[0, 1], [0, 4], [1, 5], [1,5], [1,5], [2, 5], [2,5], [3,4], [4,5]],
-                                  is_directed = True
-                                  )
+        d_edges = [[[0, 1],
+                        [1, 2],
+                        [4, 5],
+                        [6, 7],
+                        [7, 8],],
+                        [[0, 1],
+                        [1, 2],
+                        [1, 5],
+                        [4, 5],
+                        [3, 7],
+                        [6, 7],
+                        [4, 8],
+                        [7, 8],],
+                        [[0, 1],
+                        [1, 2],
+                        [1, 5],
+                        [4, 5],
+                        [0, 7],
+                        [3, 7],
+                        [6, 7],
+                        [1, 8],
+                        [4, 8],
+                        [7, 8],],
+                        [[0, 1],
+                        [1, 2],
+                        [1, 5],
+                        [4, 5],
+                        [0, 7],
+                        [3, 7],
+                        [6, 7],
+                        [1, 8],
+                        [4, 8],
+                        [7, 8],],
+                        ]
+        with self.subTest(from_="graphs"):
+            self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
+                                    [[1,2]],
+                                    [[0,1], [1,2]]],
+                                    6,
+                                    [[0, 1], [0, 4], [1, 5], [1,5], [1,5], [2, 5], [2,5], [3,4], [4,5]],
+                                    is_directed = True,
+                                    dense_edges= d_edges,
+                                    horizons=[0,1,2,-1]
+                                    )
+        with self.subTest(from_="edges"):
+            self.sparse_temp_fast_graph_test(np.array([[0,1,0], [1,2,0],
+                                    [1,2,1],
+                                    [0,1,2], [1,2,2]],dtype=int),
+                                    6,
+                                    [[0, 1], [0, 4], [1, 5], [1,5], [1,5], [2, 5], [2,5], [3,4], [4,5]],
+                                    is_directed = True,
+                                    dense_edges= d_edges,
+                                    horizons=[0,1,2,-1]
+                                    )
 
 
     def test_sparse_big_graph_undir_1(self):
+        dense_edges = [[[0, 1],
+                        [1, 0],
+                        [1, 2],
+                        [2, 1],
+                        [4, 5],
+                        [5, 4],],
+                        [[0, 1],
+                        [1, 0],
+                        [1, 2],
+                        [2, 1],
+                        [1, 5],
+                        [2, 4],
+                        [4, 5],
+                        [5, 4],],
+                        [[0, 1],
+                        [1, 0],
+                        [1, 2],
+                        [2, 1],
+                        [1, 5],
+                        [2, 4],
+                        [4, 5],
+                        [5, 4],],]
         self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
                                    [[1,2]]],
                                   5,
                                   [[0, 1], [1, 0], [1,2], [1,4], [2,1], [2,3], [3,4], [4,3]],
-                                  is_directed = False
+                                  is_directed = False,
+                                  dense_edges=dense_edges,
+                                  horizons=[0,1,-1]
+                                  )
+
+
+    def test_sparse_big_graph_undir_2(self):
+        dense_edges = [[[0, 1],
+                        [1, 0],
+                        [1, 2],
+                        [2, 1],
+                        [4, 5],
+                        [5, 4],
+                        [6, 8],
+                        [8, 6]],
+
+                        [[0, 1],
+                        [1, 0],
+                        [1, 2],
+                        [2, 1],
+                        [4, 5],
+                        [1, 5],
+                        [5, 4],
+                        [2, 4],
+                        [6, 8],
+                        [3, 8],
+                        [8, 6],
+                        [5, 6]],
+
+                        [[0, 1],
+                        [1, 0],
+                        [1, 2],
+                        [2, 1],
+                        [4, 5],
+                        [1, 5],
+                        [5, 4],
+                        [2, 4],
+                        [6, 8],
+                        [0, 8],
+                        [3, 8],
+                        [8, 6],
+                        [2, 6],
+                        [5, 6]],]
+        self.sparse_temp_fast_graph_test([[[0,1], [1,2]],
+                                   [[1,2]],
+                                   [[0,2]]],
+                                  7,
+                                   [[0, 1],
+                                    [0, 6],
+                                    [1, 0],
+                                    [1, 2],
+                                    [1, 4],
+                                    [2, 1],
+                                    [2, 3],
+                                    [2, 5],
+                                    [3, 4],
+                                    [4, 3],
+                                    [4, 5],
+                                    [5, 6],
+                                    [6, 5]],
+                                  is_directed = False,
+                                  dense_edges= dense_edges,
+                                    horizons=[0,1,-1]
                                   )
 
     def test_causal_adjacency_the_same(self):
