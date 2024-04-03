@@ -1,6 +1,7 @@
 from collections import deque
 import numpy as np
 from numba import njit
+from tnestmodel.temp_utils import switch_slice_directions
 
 @njit(cache=True)
 def count_number_of_active_nodes_per_node(E, num_nodes):
@@ -67,7 +68,7 @@ def get_random_hashes(n, max_sum_length, seed=0):
     rng = np.random.default_rng(seed)
     return rng.integers(0, max_value_hash, size=n, dtype=np.uint64, endpoint=True)
 
-def compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed : int=0):
+def compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed : int=0, reverse_slices=True):
     """Computes temporal wl of temporal edges E
     E : temporal edges, size = (num_edges, 3); u,v,t = E[0,:] represents a directed edge u->v at time t
     num_nodes: the number of non-temporal nodes
@@ -81,10 +82,11 @@ def compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed 
         d = d,
         h=h,
         seed=seed,
+        reverse_slices=reverse_slices
     )
     return colors_per_round, repeat_active_nodes(num_active_per_node), times_for_active
 
-def _compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed : int=0):
+def _compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed : int=0, reverse_slices=True):
     """Computes temporal wl of temporal edges E
     E : temporal edges, size = (num_edges, 3); u,v,t = E[0,:] represents a directed edge u->v at time t
     num_nodes: the number of non-temporal nodes
@@ -92,6 +94,8 @@ def _compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed
     h: absolute horizon of temporal nodes, i.e. an edge at time t can see nodes up to and including t+h; h<0 means infinite horizon
     seed: seed used to initialize pseudo random number generator generating used hash values
     """
+    if reverse_slices:
+        E = switch_slice_directions(E)
     assert d != 0
     order_in_time = np.argsort(E[:, 2])
     smallest_time = E[order_in_time[0],2]
@@ -216,8 +220,9 @@ class TemporalColorsStruct:
             (u_act, _) = self.E_active[self.left_e_index,:]
             (_, v, t_e) = self.E[self.left_e_index,:]
 
-            #assert t_act==t_E
+            # print(t, "A   ", u_act, v, t_e)
             if t_e >= t:
+                # print("skipped")
                 # we arrived at edges that can be potentially seen
                 break
 
@@ -232,7 +237,9 @@ class TemporalColorsStruct:
         while self.right_e_index < len(self.E):
             (u_act, _) = self.E_active[self.right_e_index,:]
             (_, v, t_e) = self.E[self.right_e_index,:]
-            if t_e > t + self.h + 1:
+            # print(t, "B   ", u_act, v, t_e)
+            if t_e > t + self.h:
+                # print("skipped")
                 # we no longer see this edge or any future edges, break
                 break
             #self.right_active_node[v]+=1

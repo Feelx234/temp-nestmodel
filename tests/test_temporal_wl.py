@@ -21,7 +21,7 @@ times2 = [0, 0, 1, 3, 1, 2, 3, 4, 2, 4]
 
 class TestTemporalWL(unittest.TestCase):
     def test_compute_d_rounds_1(self):
-        colors, nodes, times = compute_d_rounds(E1, 4, d=3, h=-1, seed=0)
+        colors, nodes, times = compute_d_rounds(E1, 4, d=3, h=-1, seed=0, reverse_slices=False)
         self.assertEqual(len(colors), 2)
         assert_partitions_equivalent(colors[0], np.zeros(7, dtype=int))
         assert_partitions_equivalent(colors[1], [1,2,2,2,1,0,0])
@@ -29,7 +29,7 @@ class TestTemporalWL(unittest.TestCase):
         assert_array_equal(times, times1)
 
     def test_compute_d_rounds_1_1(self):
-        colors, nodes, times = compute_d_rounds(E1, num_nodes=5, d=3, h=-1, seed=0)
+        colors, nodes, times = compute_d_rounds(E1, num_nodes=5, d=3, h=-1, seed=0, reverse_slices=False)
         self.assertEqual(len(colors), 2)
         assert_partitions_equivalent(colors[0], np.zeros(7, dtype=int))
         assert_partitions_equivalent(colors[1], [1,2,2,2,1,0,0])
@@ -38,7 +38,7 @@ class TestTemporalWL(unittest.TestCase):
 
 
     def test_compute_d_rounds_2(self):
-        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=-1, seed=0)
+        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=-1, seed=0, reverse_slices=False)
         self.assertEqual(len(colors), 3)
         assert_partitions_equivalent(colors[0], np.zeros(10, dtype=int))
         assert_partitions_equivalent(colors[1], [1, 2, 2, 1, 2, 2, 1, 1, 0, 0])
@@ -50,7 +50,7 @@ class TestTemporalWL(unittest.TestCase):
 
 
     def test_compute_d_rounds_finite_h1(self):
-        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=1, seed=0)
+        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=1, seed=0, reverse_slices=False)
         self.assertEqual(len(colors), 4)
         assert_partitions_equivalent(colors[0], np.zeros(10, dtype=int))
         assert_partitions_equivalent(colors[1], [1, 1, 1, 1, 1, 1, 1, 1, 0, 0])
@@ -62,7 +62,7 @@ class TestTemporalWL(unittest.TestCase):
 
     def test_compute_d_rounds_finite_h0_1(self):
         """Test for h=0"""
-        colors, nodes, times = compute_d_rounds(E1, 4, d=10, h=0, seed=0)
+        colors, nodes, times = compute_d_rounds(E1, 4, d=10, h=0, seed=0, reverse_slices=False)
         self.assertEqual(len(colors), 2)
         assert_partitions_equivalent(colors[0], np.zeros(7, dtype=int))
         assert_partitions_equivalent(colors[1], [2, 1, 1, 3, 2, 1, 1])
@@ -71,7 +71,7 @@ class TestTemporalWL(unittest.TestCase):
 
     def test_compute_d_rounds_finite_h0_2(self):
         """Test for h=0"""
-        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=0, seed=0)
+        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=0, seed=0, reverse_slices=False)
         self.assertEqual(len(colors), 2)
         assert_partitions_equivalent(colors[0], np.zeros(10, dtype=int))
         assert_partitions_equivalent(colors[1], [2, 1, 2, 2, 1, 2, 1, 2, 1, 1])
@@ -80,7 +80,7 @@ class TestTemporalWL(unittest.TestCase):
 
     def test_compute_d_rounds_finite_h2_2(self):
         """Test for h=2"""
-        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=2, seed=0)
+        colors, nodes, times = compute_d_rounds(E2, 4, d=10, h=2, seed=0, reverse_slices=False)
         self.assertEqual(len(colors), 4)
         assert_partitions_equivalent(colors[0], np.zeros(10, dtype=int))
         assert_partitions_equivalent(colors[1], [1, 1, 2, 1, 1, 2, 1, 1, 0, 0])
@@ -93,62 +93,81 @@ class TestTemporalWL(unittest.TestCase):
 
 
 class TestTemporalStruct(unittest.TestCase):
-    def check_partitions_agree(self, s, times, solutions, check_global=True):
+    def check_partitions_agree(self, s, times, solutions, check_global=True, edges=None):
+
         global_partitions = []
         for t, sol in zip(times, solutions):
-            s.advance_time(t)
-            if check_global:
-                global_partitions.append(s.current_colors.copy())
-            assert_partitions_equivalent(s.current_colors, sol)
+            with self.subTest(t=t):
+                s.advance_time(t)
+                if check_global:
+                    global_partitions.append(s.current_colors.copy())
+                print(s.current_colors)
+                assert_partitions_equivalent(s.current_colors, sol)
         if check_global:
             sols = np.array(solutions, dtype=np.int64).ravel()
             global_array = np.array(global_partitions, dtype=np.int64).ravel()
             assert_partitions_equivalent(sols, global_array)
+            if not edges is None:
+                h = s.h
+                G_t = SparseTempFastGraph.from_temporal_edges(edges, is_directed=True)
+                G = G_t.get_dense_causal_completion(h=h).switch_directions()
+                G.ensure_edges_prepared()
+                G.calc_wl()
+                assert_partitions_equivalent(global_array, G.base_partitions[s.d,:])
 
 
     def test_global_fill_h1_d1(self):
-        h=1
-        s = TemporalColorsStruct(*_compute_d_rounds(E2, 4, d=-1, h=h))
-        s.reset_colors(d=1, h = h)
+        h=1; d=1; edges=E2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
+        s = TemporalColorsStruct(*_compute_d_rounds(edges, num_nodes, d=d, h=h))
+        s.reset_colors(d=d, h = h)
+
         solutions = [
-            [1,1,0,0],
             [0,1,1,0],
-            [0,1,1,0],
-            [0,1,1,0],
-            [0,0,1,0]
+            [0,0,1,1],
+            [0,0,1,1],
+            [0,0,1,1],
+            [0,0,0,1]
         ]
-        self.check_partitions_agree(s, range(5), solutions)
+        self.check_partitions_agree(s, range(5), solutions, edges=edges)
 
 
     def test_global_fill_h2_d1(self):
-        h=2
-        s = TemporalColorsStruct(*_compute_d_rounds(E2, 4, d=-1, h=h))
-        s.reset_colors(d=1, h = h)
+        h=2; d=1; edges=E2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
+        s = TemporalColorsStruct(*_compute_d_rounds(edges, num_nodes, d=d, h=h))
+        s.reset_colors(d=d, h = h)
+
         solutions = [
-            [1,1,1,0],
-            [0,2,1,0],
-            [0,1,2,0],
-            [0,1,1,0],
-            [0,0,1,0]
+            [0,1,1,1],
+            [0,0,2,1],
+            [0,0,1,2],
+            [0,0,1,1],
+            [0,0,0,1]
         ]
-        self.check_partitions_agree(s, range(5), solutions)
+        self.check_partitions_agree(s, range(5), solutions, edges=edges)
 
 
     def test_global_fill_h2_d2(self):
-        h=2
-        s = TemporalColorsStruct(*_compute_d_rounds(E2, 4, d=-1, h=h))
-        s.reset_colors(d=2, h = h)
+        h=2; d=2; edges=E2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
+        s = TemporalColorsStruct(*_compute_d_rounds(E2, num_nodes, d=d, h=h))
+        s.reset_colors(d=d, h = h)
+
+        # G_t = SparseTempFastGraph.from_temporal_edges(edges, is_directed=True)
+        # G = G_t.get_dense_causal_completion(h=h).switch_directions()
+        # G.ensure_edges_prepared()
+        # G.calc_wl()
+        # print(repr(G.base_partitions[d,:].reshape(5,num_nodes)))
+
         solutions = [
-            [1,1,2,0],
-            [0,3,2,0],
-            [0,1,4,0],
-            [0,1,2,0],
-            [0,0,2,0]
+            [0, 1, 1, 2],
+            [0, 0, 3, 2],
+            [0, 0, 1, 4],
+            [0, 0, 1, 1],
+            [0, 0, 0, 1],
         ]
         self.check_partitions_agree(s, range(5), solutions)
-        s.reset_colors(d=2, h=h)
+        s.reset_colors(d=d, h=h)
         self.check_partitions_agree(s, range(5), solutions)
-        s.reset_colors(d=2, h=h)
+        s.reset_colors(d=d, h=h)
         s.advance_time(0)
         # #assert_partitions_equivalent(s.current_colors, [1,1,1,0])
         # print("<<<<<", s.current_colors)
@@ -171,29 +190,29 @@ class TestTemporalStruct(unittest.TestCase):
 
 
     def test_global_fill_h1_d1_local(self):
-        h=1
-        s = TemporalColorsStruct(*_compute_d_rounds(E2, 4, d=-1, h=h))
-        s.reset_colors(d=1, h = h, mode="local")
+        h=1; d=1; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
+        s = TemporalColorsStruct(*_compute_d_rounds(E2, num_nodes, d=d, h=h))
+        s.reset_colors(d=d, h = h, mode="local")
         solutions = [
-            [1,1,0,0],
             [0,1,1,0],
-            [0,1,1,0],
-            [0,1,1,0],
-            [0,0,1,0]
+            [0,0,1,1],
+            [0,0,1,1],
+            [0,0,1,1],
+            [0,0,0,1]
         ]
         self.check_partitions_agree(s, range(5), solutions, check_global=False)
 
 
     def test_global_fill_h2_d2_local(self):
-        h=2
-        s = TemporalColorsStruct(*_compute_d_rounds(E2, 4, d=-1, h=h))
-        s.reset_colors(d=2, h = h, mode="local")
+        h=2; d=2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
+        s = TemporalColorsStruct(*_compute_d_rounds(E2, num_nodes, d=d, h=h))
+        s.reset_colors(d=d, h = h, mode="local")
         solutions = [
-            [1,1,2,0],
-            [0,3,2,0],
-            [0,1,4,0],
-            [0,1,2,0],
-            [0,0,2,0]
+            [0, 1, 1, 2],
+            [0, 0, 3, 2],
+            [0, 0, 1, 4],
+            [0, 0, 1, 1],
+            [0, 0, 0, 1],
         ]
         self.check_partitions_agree(s, range(5), solutions, check_global=False)
         s.reset_colors(d=2, h=h)

@@ -24,8 +24,6 @@ def partition_temporal_edges(E):
     """Partitions temporal edges into graphs per time"""
     time_order = np.argsort(E[:,2])
     E = E[time_order, :]
-    
-    
     last_t = E[0,2]
     curr_list = [(E[0,0], E[0,1])]
     curr_list.pop()
@@ -39,6 +37,14 @@ def partition_temporal_edges(E):
             last_t = t
             times.append(last_t)
         curr_list.append((u,v))
- 
     list_of_arrs = [np.array(x, dtype=np.uint32) for x in list_edges]
     return list_of_arrs, times
+
+
+def switch_slice_directions(E):
+    """Switches the directions of edges in each time slice"""
+    out = np.empty_like(E)
+    out[:,0] = E[:,1]
+    out[:,1] = E[:,0]
+    out[:,2] = E[:,2]
+    return out
