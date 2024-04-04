@@ -185,6 +185,7 @@ class MappedGraph(FastGraph):
 
     @classmethod
     def from_edges(cls, edges, is_directed, global_num_nodes=None):
+        """Create a temporal graph from themporal edges"""
         raw_edges = edges.copy()
         mapped_edges, mapping, unmapping = relabel_edges(edges)
         internal_num_nodes = len(unmapping)
