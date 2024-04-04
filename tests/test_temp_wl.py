@@ -1,7 +1,7 @@
 # pylint: disable=missing-function-docstring, missing-class-docstring
 import unittest
 
-from tnestmodel.causal_completion import compare_wl_dense_sparse_causal
+from tnestmodel.causal_completion import compare_wl_dense_sparse, compare_wl_dense_cumsum
 
 from tnestmodel.temp_generation import temporal_Gnp
 
@@ -22,7 +22,8 @@ class TestDifferentWL(unittest.TestCase):
                                     continue
                                 for h in [0,1,2,3,4,5,10,20,30,100]:
                                     with self.subTest(h=h):
-                                        compare_wl_dense_sparse_causal(G_temp, h)
+                                        compare_wl_dense_cumsum(G_temp, h)
+                                        compare_wl_dense_sparse(G_temp, h)
 
 if __name__ == '__main__':
     unittest.main(failfast=True)

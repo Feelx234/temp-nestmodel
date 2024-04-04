@@ -246,22 +246,46 @@ def get_sparse_causal(G_temp, h, add_nodes=0):
     return G
 
 
-def compare_wl_dense_sparse_causal(G_temp, h):
+def compare_wl_dense_sparse(G_temp, h):
     """Asserts that the dense and sparse causal graphs produce the same WL colors for graph G_temp"""
-    G_tmp = G_temp.get_dense_causal_completion(h=h)
-    G_dense  = G_tmp.switch_directions()
-    G_dense.identifiers = G_tmp.identifiers
-    add_nodes=1
-    G_sparse = get_sparse_causal(G_temp, h=h, add_nodes=add_nodes)
-
-    tmp_sparse_colors = G_sparse.calc_wl()
-    sparse_colors = [sparse_wl_to_dense_wl(G_sparse, sparse, add_nodes=add_nodes) for sparse in tmp_sparse_colors]
-    dense_colors = G_dense.calc_wl()
+    dense_colors = get_all_dense_wl_colors(G_temp, h)
 
     # print(tmp_sparse_colors, sparse_colors, dense_colors)
-    sparse_colors = [x.ravel() for x in sparse_colors]
+    sparse_colors = get_all_sparse_wl_colors(G_temp, h)
     # [x.reshape((len(G_temp.times), G_temp.num_nodes)) for x in sparse_colors]
     assert len(sparse_colors) == len(dense_colors), f"Number of iterations does not match h = {h}"
 
     for dense, sparse in zip(dense_colors, sparse_colors):
         assert_partitions_equivalent(dense, sparse)
+
+
+def compare_wl_dense_cumsum(G_temp, h):
+    """Asserts that the dense and sparse causal graphs produce the same WL colors for graph G_temp"""
+    dense_colors = get_all_dense_wl_colors(G_temp, h)
+    cumsum_colors = get_all_cumsum_wl_colors(G_temp, h)
+    # [x.reshape((len(G_temp.times), G_temp.num_nodes)) for x in sparse_colors]
+    #assert len(cumsum_colors) == len(dense_colors), f"Number of iterations does not match h = {h}"
+
+    for dense, cumsum in zip(dense_colors, cumsum_colors):
+        assert_partitions_equivalent(dense, cumsum)
+
+def get_all_sparse_wl_colors(G_temp, h):
+    add_nodes=1
+    G_sparse = get_sparse_causal(G_temp, h=h, add_nodes=add_nodes)
+    tmp_sparse_colors = G_sparse.calc_wl()
+    sparse_colors = [sparse_wl_to_dense_wl(G_sparse, sparse, add_nodes=add_nodes) for sparse in tmp_sparse_colors]
+    return [x.ravel() for x in sparse_colors]
+
+def get_all_dense_wl_colors(G_temp, h):
+    G_tmp = G_temp.get_dense_causal_completion(h=h)
+    G_dense  = G_tmp.switch_directions()
+    G_dense.identifiers = G_tmp.identifiers
+    return G_dense.calc_wl()
+
+def get_all_cumsum_wl_colors(G_temp, h):
+    s = G_temp.get_temporal_wl_struct(h=h)
+    out = []
+    for d in range(len(s.cumsum_hashes_per_round)+1):
+        colors= s.get_colors_all_times(d=d, h=h)
+        out.append(colors)
+    return out

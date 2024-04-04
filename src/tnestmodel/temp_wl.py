@@ -123,13 +123,15 @@ def _compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed
     num_prev_colors = len(np.unique(colors))
     for _ in range(max_num_iterations):
         new_colors, cumsum_hashes = one_round(hashes, colors_per_round[-1], num_prev_colors, E_active, num_active_per_node, total_active_nodes, times_for_active, h)
-
+        # print(new_colors)
         max_colors = new_colors.max()+1
+        # print("max", max_colors, num_prev_colors)
+        cumsum_hashes_per_round.append(cumsum_hashes)
         if max_colors==num_prev_colors: # stable colors reached, terminate
             break
         num_prev_colors = max_colors
         colors_per_round.append(new_colors)
-        cumsum_hashes_per_round.append(cumsum_hashes)
+
 
 
     return colors_per_round, cumsum_hashes_per_round, hashes, num_active_per_node, E, E_active, times_for_active
@@ -179,7 +181,7 @@ class TemporalColorsStruct:
     def reset_colors(self, d, h, mode=None):
         """Resets colors and allows to restart the coloring process"""
         self.d = d
-        assert h > 0
+        # assert h > 0
         self.h = h
         self.t = -1
         if d > 0:
@@ -293,6 +295,17 @@ class TemporalColorsStruct:
                 assert False, "This should not be reached"
         return changed_nodes
 
+    def get_colors_all_times(self, d, h, mode=None):
+        """Computes the colors for all times
+        this runs in O(V*T + E)
+        """
+        self.reset_colors(d, h, mode=mode)
+        times = np.unique(self.E[:,2]).ravel()
+        colors = []
+        for t in times:
+            self.advance_time(t)
+            colors.append(self.current_colors.copy())
+        return np.hstack(colors)
 
 
 
@@ -343,8 +356,8 @@ def one_round(hashes : np.ndarray, colors : np.ndarray, num_colors : int, E_acti
     # find colors (i.e. numbers from 0 to number of nodes)
     #    to replace hashes
     current_color = 0
-    current_hash = simple_hashes[order[0]]
-    out_colors = np.empty(num_active_nodes, dtype=np.uint64)
+    current_hash = agg_hashes[order[0]]
+    out_colors = np.empty(num_active_nodes, dtype=np.int64)
     for i in order:
         if current_hash == agg_hashes[i]:
             out_colors[i] = current_color
