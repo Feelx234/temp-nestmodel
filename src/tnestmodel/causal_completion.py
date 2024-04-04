@@ -1,5 +1,9 @@
+from collections import defaultdict
 import numpy as np
 from numba import njit
+from nestmodel.fast_graph import FastGraph
+from tnestmodel.wl_utils import assert_partitions_equivalent
+from tnestmodel.temp_utils import temp_undir_to_directed
 
 @njit(cache=True)
 def calculate_number_of_dense_edges(E_temp):
@@ -71,6 +75,7 @@ def get_edges_dense_causal_completion(E_temp, times, num_nodes, h):
 
 
 def get_potentially_active_nodes(E, h, num_nodes):
+    """Returns an array of potentially active nodes of the temporal graph specified by the temporal edges E"""
     pactive_nodes = []
     times = np.unique(E[:,2])
 
@@ -105,6 +110,7 @@ def get_potentially_active_nodes(E, h, num_nodes):
                 # we no longer see this edge or any future edges, break
                 break
             if last_active_time[u]<t:
+                # print("adding", u, t)
                 pactive_nodes.append((u,t))
                 last_active_time[u]=t
             right_e_index+=1
@@ -112,7 +118,8 @@ def get_potentially_active_nodes(E, h, num_nodes):
     order=np.lexsort(pactive_nodes.T)
     return pactive_nodes[order,:]
 
-def remove_duplicates(pactive_nodes):
+def remove_consecutive_duplicates(pactive_nodes):
+    """Removes consecutive duplicated from pactive_nodes inplace!"""
     n = 1
     last_u, last_t = pactive_nodes[0,:]
     for i,(u,t) in enumerate(pactive_nodes[1:,:]):
@@ -126,8 +133,9 @@ def remove_duplicates(pactive_nodes):
     return pactive_nodes[:n,:]
 
 
-from collections import defaultdict
+
 def collect_out_edges_per_node(E):
+    """Returns a dictionary that contains for each node v a list of temporal nodes that are out neighbors of v"""
     per_node = defaultdict(list)
     for u,v,t in E:
         per_node[u].append((v,t))
@@ -161,14 +169,15 @@ def _create_sparse_causal_graph(per_node, pactive_nodes, h, num_nodes):
 
 
 
-from tnestmodel.temp_utils import temp_undir_to_directed
+
 def create_sparse_causal_graph(E_temp, h, is_directed, num_nodes, should_print=False):
+    """Create a sparse causal graph from temporal edges and a given horizon h"""
     if not is_directed:
         E_temp = temp_undir_to_directed(E_temp)
     pactive_nodes = get_potentially_active_nodes(E_temp, h, num_nodes)
     if should_print:
         print(len(pactive_nodes))
-    pactive_nodes = remove_duplicates(pactive_nodes)
+    pactive_nodes = remove_consecutive_duplicates(pactive_nodes)
     if should_print:
         print(len(pactive_nodes))
 
@@ -176,3 +185,83 @@ def create_sparse_causal_graph(E_temp, h, is_directed, num_nodes, should_print=F
     per_node = collect_out_edges_per_node(E_temp)
     E_out, int_to_tuple = _create_sparse_causal_graph(per_node, pactive_nodes, h, num_nodes)
     return E_out, num_all_nodes, int_to_tuple
+
+
+def sparse_wl_to_dense_wl(G_sparse, colors, add_nodes=0):
+    """Convert the wl colors computed for the sparse causal graph to dense wl colors
+    if add_nodes is provided, it is assumed, that the last add_nodes nodes are degree zero nodes that can be ignored.
+
+    """
+    if add_nodes >0:
+        zero_color = colors[-add_nodes]
+        colors=colors[:-1]
+    else:
+        colors_of_zero_nodes = colors[G_sparse.in_degree==0]
+        if len(colors_of_zero_nodes)>0:
+            zero_color = colors_of_zero_nodes[0]
+            assert np.all(zero_color==colors_of_zero_nodes)
+        else:
+            zero_color = np.max(colors)+1
+    nodes = np.unique(G_sparse.identifiers[:,0].ravel())
+    times = np.unique(G_sparse.identifiers[:,1].ravel())
+    time_to_index = {t:i for i,t in enumerate(times)}
+    num_nodes = nodes[-1]+1
+    num_times = len(times)
+    dense_colors = np.full((num_times, num_nodes), zero_color, dtype=np.int32)
+    times_colors_per_node = defaultdict(list)
+    for (v,t), color in zip(G_sparse.identifiers, colors):
+        times_colors_per_node[v].append((t, color))
+    for v, l in times_colors_per_node.items():
+        for i in range(len(l)-1):
+            t = time_to_index[l[i][0]]
+            next_t = time_to_index[l[i+1][0]]
+            color = l[i][1]
+            assert t < next_t
+            # print(v, "", t, next_t, color)
+
+            dense_colors[t:next_t,v] = color
+        t = time_to_index[l[len(l)-1][0]]
+        color = l[len(l)-1][1]
+        # print(v, "", t, color)
+        dense_colors[t,v] = color
+    return dense_colors
+
+
+def identifiers_from_int_to_tuple(int_to_tuple):
+    """Create the identifiers array from in_to_tuple mapping"""
+    identifiers = np.zeros((len(int_to_tuple),2), dtype=np.int32)
+    for key, (v,t) in int_to_tuple.items():
+        identifiers[key,0] = v
+        identifiers[key,1] = t
+    return identifiers
+
+
+def get_sparse_causal(G_temp, h, add_nodes=0):
+    """Obtain a sparse causal graph from the temporal graph G_temp at horizon h"""
+    E = G_temp.to_temporal_edges()
+    E_out, num_all_nodes, int_to_tuple = create_sparse_causal_graph(E, h, False, G_temp.num_nodes)
+    G = FastGraph(np.array(E_out, dtype=np.uint32), is_directed=True, num_nodes=num_all_nodes+add_nodes).switch_directions()
+    G.identifiers = identifiers_from_int_to_tuple(int_to_tuple)
+    G.num_nodes_per_time=G_temp.num_nodes
+    return G
+
+
+def compare_wl_dense_sparse_causal(G_temp, h):
+    """Asserts that the dense and sparse causal graphs produce the same WL colors for graph G_temp"""
+    G_tmp = G_temp.get_dense_causal_completion(h=h)
+    G_dense  = G_tmp.switch_directions()
+    G_dense.identifiers = G_tmp.identifiers
+    add_nodes=1
+    G_sparse = get_sparse_causal(G_temp, h=h, add_nodes=add_nodes)
+
+    tmp_sparse_colors = G_sparse.calc_wl()
+    sparse_colors = [sparse_wl_to_dense_wl(G_sparse, sparse, add_nodes=add_nodes) for sparse in tmp_sparse_colors]
+    dense_colors = G_dense.calc_wl()
+
+    # print(tmp_sparse_colors, sparse_colors, dense_colors)
+    sparse_colors = [x.ravel() for x in sparse_colors]
+    # [x.reshape((len(G_temp.times), G_temp.num_nodes)) for x in sparse_colors]
+    assert len(sparse_colors) == len(dense_colors), f"Number of iterations does not match h = {h}"
+
+    for dense, sparse in zip(dense_colors, sparse_colors):
+        assert_partitions_equivalent(dense, sparse)
