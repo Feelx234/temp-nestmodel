@@ -24,10 +24,11 @@ def get_dense_identifiers(times, num_nodes):
     num_all_nodes = len(times) * num_nodes
     identifiers = np.empty((num_all_nodes, 2), dtype=np.int64)
     n = 0
-    for t in times:
+    for t in range(len(times)):
         for v in range(num_nodes):
-            identifiers[n,0] = t
-            identifiers[n,1] = v
+            identifiers[n,0] = v
+            identifiers[n,1] = t
+            n+=1
     return identifiers
 
 

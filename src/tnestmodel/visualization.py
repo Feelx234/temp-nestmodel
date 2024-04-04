@@ -38,7 +38,7 @@ def draw_networkx_causal(G, labels=False, colors=None):
         edge_multiplicity = Counter(map(tuple, G.edges))
         include_multiplicity = max(edge_multiplicity.values())>1
 
-        pos = {i : G.identifiers[i,:] for i in range(len(G.identifiers))}
+        pos = {i : (G.identifiers[i,1],G.identifiers[i,0],) for i in range(len(G.identifiers))}
     else:
         pos = {i : divmod(i, G.num_nodes_per_time) for i in range(G.num_nodes)}
     G_nx = G.to_nx()
@@ -86,9 +86,10 @@ def draw_networkx_temp(G_t, colors=None):
         cols = G_t.calc_wl()
         G_t.apply_wl_colors_to_slices(cols)
 
-    for t, G in enumerate(G_t.slices):
-        G_nx = G.to_nx()
+    for t, G in zip(G_t.times, G_t.slices):
+        G_nx = nx.relabel_nodes(G.to_nx(), {i:x for i, x in enumerate(G.unmapping)})
         pos = {i : (t, i) for i in G_nx.nodes}
+
 
         if colors is None:
             nx.draw_networkx_nodes(G_nx, pos)
@@ -103,5 +104,6 @@ def draw_networkx_temp(G_t, colors=None):
             raise NotImplementedError()
         nx.draw_networkx_edges( # From https://stackoverflow.com/questions/52588453/creating-curved-edges-with-networkx-in-python3
             G_nx, pos,
+            arrows=True,
             connectionstyle="arc3,rad=0.2"  # <-- THIS IS IT
         )

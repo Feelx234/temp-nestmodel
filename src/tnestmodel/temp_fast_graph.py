@@ -583,8 +583,8 @@ class SparseTempFastGraph():
             for i in range(g.num_nodes):# set node identifiers for nodes this slice
                 if is_active[t][i]:
                     global_name = n_temp + num_prev_nodes[t]
-                    node_identifier[global_name,0] = t
-                    node_identifier[global_name,1] = g.unmapping[i]
+                    node_identifier[global_name,0] = g.unmapping[i]
+                    node_identifier[global_name,1] = t
                     n_temp+=1
 
         all_edges = np.vstack(list(reversed(all_edges)))

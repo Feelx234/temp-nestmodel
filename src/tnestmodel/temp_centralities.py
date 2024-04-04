@@ -58,8 +58,8 @@ def get_leftmost_entry_for_nodes(katz, identifiers, n, default=1):
     out = np.full(n, default, dtype=np.float64)
     min_time = np.full(n, np.iinfo(np.int32).max, dtype=np.int32)
     for i in range(len(katz)): # pylint: disable=consider-using-enumerate
-        t = identifiers[i, 0]
-        node = identifiers[i, 1]
+        t = identifiers[i, 1]
+        node = identifiers[i, 0]
         if t < min_time[node] and katz[i]>1.0:
             out[node]=katz[i]
             min_time[node]=t
@@ -81,8 +81,8 @@ def calc_temp_katz_from_causal(G_t, alpha=0.1, epsilon=0, max_iter=None, kind="b
         katz = calc_katz(g_causal_rev, alpha=alpha)
 
         from scipy.sparse import coo_array
-        ts = g_causal.identifiers[:,0]
-        ids =  g_causal.identifiers[:,1]
+        ts = g_causal.identifiers[:,1]
+        ids =  g_causal.identifiers[:,0]
         print(coo_array((katz, (ts, ids)), shape = (T, n)).todense().T)
 
 
