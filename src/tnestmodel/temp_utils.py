@@ -18,9 +18,15 @@ def temp_undir_to_directed(E):
     return E_out
 
 
+def partition_temporal_edges(E):
+    """Partitions temporal edges into graphs per time"""
+    if len(E)==0:
+        return [],[]
+    return _partition_temporal_edges(E)
+
 
 @njit(cache=True)
-def partition_temporal_edges(E):
+def _partition_temporal_edges(E):
     """Partitions temporal edges into graphs per time"""
     time_order = np.argsort(E[:,2])
     E = E[time_order, :]
