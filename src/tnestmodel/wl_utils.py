@@ -31,7 +31,7 @@ def partitions_equivalent(p1, p2):
     num_colors2=len(np.unique(p2))
     if not  num_colors1== num_colors2:
         return False, f"number of partitions does not match, {num_colors1} != {num_colors2}"
-    if p1.max() < len(p1)*2:
+    if np.max(p1) < len(p1)*2:
         return _array_based_partitions_equivalent(np.array(p1, dtype=np.int64).ravel(), np.array(p2, dtype=np.int64).ravel())
     else:
         raise NotImplementedError

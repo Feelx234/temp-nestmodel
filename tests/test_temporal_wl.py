@@ -101,7 +101,6 @@ class TestTemporalStruct(unittest.TestCase):
                 s.advance_time(t)
                 if check_global:
                     global_partitions.append(s.current_colors.copy())
-                print(s.current_colors)
                 assert_partitions_equivalent(s.current_colors, sol)
         if check_global:
             sols = np.array(solutions, dtype=np.int64).ravel()
@@ -119,7 +118,7 @@ class TestTemporalStruct(unittest.TestCase):
     def test_global_fill_h1_d1(self):
         h=1; d=1; edges=E2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
         s = TemporalColorsStruct(*_compute_d_rounds(edges, num_nodes, d=d, h=h))
-        s.reset_colors(d=d, h = h)
+        s.reset_colors(d=d)
 
         solutions = [
             [0,1,1,0],
@@ -134,7 +133,7 @@ class TestTemporalStruct(unittest.TestCase):
     def test_global_fill_h2_d1(self):
         h=2; d=1; edges=E2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
         s = TemporalColorsStruct(*_compute_d_rounds(edges, num_nodes, d=d, h=h))
-        s.reset_colors(d=d, h = h)
+        s.reset_colors(d=d)
 
         solutions = [
             [0,1,1,1],
@@ -147,9 +146,9 @@ class TestTemporalStruct(unittest.TestCase):
 
 
     def test_global_fill_h2_d2(self):
-        h=2; d=2; edges=E2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
+        h=2; d=2; edges=E2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon, unused-variable
         s = TemporalColorsStruct(*_compute_d_rounds(E2, num_nodes, d=d, h=h))
-        s.reset_colors(d=d, h = h)
+        s.reset_colors(d=d)
 
         # G_t = SparseTempFastGraph.from_temporal_edges(edges, is_directed=True)
         # G = G_t.get_dense_causal_completion(h=h).switch_directions()
@@ -165,9 +164,9 @@ class TestTemporalStruct(unittest.TestCase):
             [0, 0, 0, 1],
         ]
         self.check_partitions_agree(s, range(5), solutions)
-        s.reset_colors(d=d, h=h)
+        s.reset_colors(d=d)
         self.check_partitions_agree(s, range(5), solutions)
-        s.reset_colors(d=d, h=h)
+        s.reset_colors(d=d)
         s.advance_time(0)
         # #assert_partitions_equivalent(s.current_colors, [1,1,1,0])
         # print("<<<<<", s.current_colors)
@@ -192,7 +191,7 @@ class TestTemporalStruct(unittest.TestCase):
     def test_global_fill_h1_d1_local(self):
         h=1; d=1; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
         s = TemporalColorsStruct(*_compute_d_rounds(E2, num_nodes, d=d, h=h))
-        s.reset_colors(d=d, h = h, mode="local")
+        s.reset_colors(d=d, mode="local")
         solutions = [
             [0,1,1,0],
             [0,0,1,1],
@@ -206,7 +205,7 @@ class TestTemporalStruct(unittest.TestCase):
     def test_global_fill_h2_d2_local(self):
         h=2; d=2; num_nodes=4;# pylint:disable=multiple-statements, unnecessary-semicolon
         s = TemporalColorsStruct(*_compute_d_rounds(E2, num_nodes, d=d, h=h))
-        s.reset_colors(d=d, h = h, mode="local")
+        s.reset_colors(d=d, mode="local")
         solutions = [
             [0, 1, 1, 2],
             [0, 0, 3, 2],
@@ -215,10 +214,11 @@ class TestTemporalStruct(unittest.TestCase):
             [0, 0, 0, 1],
         ]
         self.check_partitions_agree(s, range(5), solutions, check_global=False)
-        s.reset_colors(d=2, h=h)
+        s.reset_colors(d=d)
         self.check_partitions_agree(s, range(5), solutions, check_global=False)
 
-
+def edge_arr_to_set_of_tuples(arr):
+    return set(map(tuple, arr))
 
 class TestTFastGraphWL(unittest.TestCase):
     def test_assign_colors_to_slices(self):
@@ -257,25 +257,40 @@ class TestTFastGraphWL(unittest.TestCase):
         G.assign_colors_to_slices(h=1, d=-1)
         solutions = [
                 [[0, 0],
-                [1, 2],
-                [1, 2],
-                [1, 2]],
-                [[0, 0],
-                [1, 2],
-                [1, 4],
-                [4, 5]],
+                [2, 1],
+                [2, 1],
+                [2, 1],
+                [2, 1],
+                [2, 1],
+                [2, 1]],
                 [[0, 0],
                 [2, 1],
-                [4, 1],
-                [5, 4]],
-                [[0, 0],
-                [1, 2],
-                [1, 4],
+                [2, 4],
+                [4, 5],
+                [4, 5],
+                [4, 5],
                 [4, 6]],
                 [[0, 0],
-                [1, 1],
+                [1, 2],
+                [4, 2],
+                [5, 4],
+                [5, 4],
+                [6, 4],
+                [7, 5]],
+                [[ 0,  0],
+                [ 2,  1],
+                [ 2,  4],
+                [ 4,  7],
+                [ 6,  8],
+                [ 7,  9],
+                [ 8, 10]],
+                [[0, 0],
+                [2, 2],
                 [3, 3],
-                [7, 7]],
+                [6, 6],
+                [7, 7],
+                [8, 8],
+                [9, 9]],
         ]
         for G_t, sol in zip(G.slices, solutions):
             assert_array_equal(sol, G_t.base_partitions)
@@ -292,25 +307,40 @@ class TestTFastGraphWL(unittest.TestCase):
         G.assign_colors_to_slices(h=1, d=-1)
         solutions = [
                 [[0, 0],
-                [1, 2],
-                [1, 2],
-                [1, 2]],
-                [[0, 0],
-                [1, 2],
-                [1, 4],
-                [4, 5]],
+                [2, 1],
+                [2, 1],
+                [2, 1],
+                [2, 1],
+                [2, 1],
+                [2, 1]],
                 [[0, 0],
                 [2, 1],
-                [4, 1],
-                [5, 4]],
-                [[0, 0],
-                [1, 2],
-                [1, 4],
+                [2, 4],
+                [4, 5],
+                [4, 5],
+                [4, 5],
                 [4, 6]],
                 [[0, 0],
-                [1, 1],
+                [1, 2],
+                [4, 2],
+                [5, 4],
+                [5, 4],
+                [6, 4],
+                [7, 5]],
+                [[ 0,  0],
+                [ 2,  1],
+                [ 2,  4],
+                [ 4,  7],
+                [ 6,  8],
+                [ 7,  9],
+                [ 8, 10]],
+                [[0, 0],
+                [2, 2],
                 [3, 3],
-                [7, 7]],
+                [6, 6],
+                [7, 7],
+                [8, 8],
+                [9, 9]],
         ]
         for G_t, sol in zip(G.slices, solutions):
             assert_array_equal(sol, G_t.base_partitions)
@@ -370,11 +400,12 @@ class TestTFastGraphWL(unittest.TestCase):
             [3, 2]]
         ]
         for G_t, sol, edges in zip(G.slices, partitions, edges_sol):
-            assert_array_equal(sol, G_t.base_partitions)
-            assert_array_equal(edges, G_t.local_edges)
+            for sol_d, partition in zip(sol, G_t.base_partitions):
+                assert_partitions_equivalent(sol_d, partition)
+            self.assertSetEqual(edge_arr_to_set_of_tuples(edges), edge_arr_to_set_of_tuples(G_t.local_edges))
             #print("\t"+repr(G_t.base_partitions)[6:-14])
             #print("\t"+repr(G_t.local_edges)[6:-14])
             #print(G_t.block_indices)
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(failfast=True)

@@ -264,7 +264,7 @@ def compare_wl_dense_cumsum(G_temp, h):
     dense_colors = get_all_dense_wl_colors(G_temp, h)
     cumsum_colors = get_all_cumsum_wl_colors(G_temp, h)
     # [x.reshape((len(G_temp.times), G_temp.num_nodes)) for x in sparse_colors]
-    #assert len(cumsum_colors) == len(dense_colors), f"Number of iterations does not match h = {h}"
+    assert len(cumsum_colors) == len(dense_colors), f"Number of iterations does not match h = {h}"
 
     for dense, cumsum in zip(dense_colors, cumsum_colors):
         assert_partitions_equivalent(dense, cumsum)
@@ -286,6 +286,8 @@ def get_all_cumsum_wl_colors(G_temp, h):
     s = G_temp.get_temporal_wl_struct(h=h)
     out = []
     for d in range(len(s.cumsum_hashes_per_round)+1):
-        colors= s.get_colors_all_times(d=d, h=h)
+        colors= s.get_colors_all_times(d=d)
         out.append(colors)
+    if np.all(out[-1]==out[-2]):
+        out.pop()
     return out

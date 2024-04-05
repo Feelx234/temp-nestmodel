@@ -429,7 +429,7 @@ class SparseTempFastGraph():
         max_d = len(s.colors_per_round)
         print("max_d", max_d)
         for d_iter in range(max_d):
-            s.reset_colors(d_iter, h, mode=mode)
+            s.reset_colors(d_iter, mode=mode)
             for t, G in zip(self.times, self.slices):
                 if G.base_partitions is None:
                     G.base_partitions = []

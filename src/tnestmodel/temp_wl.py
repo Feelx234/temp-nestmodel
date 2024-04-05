@@ -1,6 +1,8 @@
 from collections import deque
 import numpy as np
 from numba import njit
+from numba.typed import Dict # pylint: disable=no-name-in-module
+from numba.core import types
 from tnestmodel.temp_utils import switch_slice_directions
 
 @njit(cache=True)
@@ -76,7 +78,7 @@ def compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed 
     h: absolute horizon of temporal nodes, i.e. an edge at time t can see nodes up to and including t+h; h<0 means infinite horizon
     seed: seed used to initialize pseudo random number generator generating used hash values
     """
-    colors_per_round, _, _, num_active_per_node, E, _, times_for_active = _compute_d_rounds(
+    _, colors_per_round, _, _, num_active_per_node, E, _, times_for_active = _compute_d_rounds(
         E=E,
         num_nodes=num_nodes,
         d = d,
@@ -109,7 +111,7 @@ def _compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed
     E_active, times_for_active = convert_edges_to_active_edges(E, num_active_per_node, total_active_nodes, num_nodes)
 
 
-    hashes = get_random_hashes(2 * total_active_nodes, max_sum_length = max_num_active+1, seed=seed)
+    hashes = get_random_hashes(2 * total_active_nodes, max_sum_length = 2*max_num_active, seed=seed)
     hashes[total_active_nodes] = 0  # assign degree zero the zero hash
 
     colors = np.zeros(total_active_nodes, dtype=np.uint64)
@@ -134,11 +136,179 @@ def _compute_d_rounds(E : np.ndarray, num_nodes : int, d : int, h : int=-1, seed
 
 
 
-    return colors_per_round, cumsum_hashes_per_round, hashes, num_active_per_node, E, E_active, times_for_active
+    return h, colors_per_round, cumsum_hashes_per_round, hashes, num_active_per_node, E, E_active, times_for_active
+
+@njit(cache=True)
+def determine_potentially_changed_nodes(t, h, left_e_index, right_e_index, E, E_active, changed_nodes, changed_indicator, hashes, cumsum_hashes, prev_colors):
+    """Computes potentially changed nodes and updates hashes"""
+    num_changed = 0
+    # process edges no longer visible
+    #  we find all nodes that loose an edge by increasing the time
+    #  for these we increase the left active node counter which
+    #  will subsequently affect that particular nodes hash
+    while left_e_index < len(E):
+        (u_act, _) = E_active[left_e_index,:]
+        (_, v, t_e) = E[left_e_index,:]
+
+        # print(t, "A   ", u_act, v, t_e)
+        if t_e >= t:
+            # print("skipped")
+            # we arrived at edges that can be potentially seen
+            break
+
+        #self.left_active_node[v]+=1
+        hash_to_add = hashes[prev_colors[u_act]]
+        cumsum_hashes[v]-=hash_to_add
+        if not changed_indicator[v]:
+            changed_nodes[num_changed]=v
+            changed_indicator[v]=True
+            num_changed+=1
+        left_e_index+=1
+    # process newly visible edges
+    #  by advancing the time, we add newly visible edges
+    while right_e_index < len(E):
+        (u_act, _) = E_active[right_e_index,:]
+        (_, v, t_e) = E[right_e_index,:]
+        # print(t, "B   ", u_act, v, t_e)
+        if t_e > t + h:
+            # print("skipped")
+            # we no longer see this edge or any future edges, break
+            break
+        #self.right_active_node[v]+=1
+        hash_to_add = hashes[prev_colors[u_act]]
+        cumsum_hashes[v]+=hash_to_add
+        if not changed_indicator[v]:
+            changed_nodes[num_changed]=v
+            changed_indicator[v]=True
+            num_changed+=1
+        right_e_index+=1
+
+    # reset the changed indicator
+    for i in range(num_changed):
+        v = changed_nodes[i]
+        changed_indicator[v]=False
+    return num_changed, left_e_index, right_e_index
+
+@njit(cache=True)
+def _advance_time(t, h, left_e_index, right_e_index, E, E_active, prev_colors, hashes, cumsum_hashes, changed_nodes, changed_indicator, current_colors, hash_dict):
+    """Computes the colors of all nodes for time t
+
+    This function runs in O(E)
+
+    It returns the name of nodes whose color changed during this update
+    """
+
+    num_changed, left_e_index, right_e_index = determine_potentially_changed_nodes(t, h, left_e_index, right_e_index, E, E_active, changed_nodes, changed_indicator, hashes, cumsum_hashes, prev_colors)
+    for i in range(num_changed):
+        v = changed_nodes[i]
+        if  cumsum_hashes[v]==0: # use "special color zero for degree zero nodes"
+            current_colors[v] = 0 # this node does not see any edges
+            continue
+        the_hash = cumsum_hashes[v]
+
+        if the_hash in hash_dict:
+            current_colors[v] = hash_dict[the_hash]
+        else:
+            # uses globally valid colors, size of hash dict needs to grow
+            new_color = len(hash_dict)+1 # color zero reserved for degree zero nodes
+            current_colors[v] = new_color
+            hash_dict[the_hash]= new_color
+    return changed_nodes[:num_changed], left_e_index, right_e_index
 
 
+def advance_time_non_compiled(self, t):
+    """Computes the colors of all nodes for time t
+
+    This function runs in O(E)
+
+    It returns the name of nodes whose color changed during this update
+    """
+
+    if self.d == 0:
+        return set()
+    self.t = t
+    changed_nodes = set()
+
+    # process edges no longer visible
+    #  we find all nodes that loose an edge by increasing the time
+    #  for these we increase the left active node counter which
+    #  will subsequently affect that particular nodes hash
+    while self.left_e_index < len(self.E):
+        (u_act, _) = self.E_active[self.left_e_index,:]
+        (_, v, t_e) = self.E[self.left_e_index,:]
+
+        # print(t, "A   ", u_act, v, t_e)
+        if t_e >= t:
+            # print("skipped")
+            # we arrived at edges that can be potentially seen
+            break
+
+        #self.left_active_node[v]+=1
+        hash_to_add = self.hashes[self.prev_colors[u_act]]
+        self.cumsum_hashes[v]-=hash_to_add
+        changed_nodes.add(v)
+        self.left_e_index+=1
+    np.seterr(all='warn')
+    # process newly visible edges
+    #  by advancing the time, we add newly visible edges
+    while self.right_e_index < len(self.E):
+        (u_act, _) = self.E_active[self.right_e_index,:]
+        (_, v, t_e) = self.E[self.right_e_index,:]
+        # print(t, "B   ", u_act, v, t_e)
+        if t_e > t + self.h:
+            # print("skipped")
+            # we no longer see this edge or any future edges, break
+            break
+        #self.right_active_node[v]+=1
+        hash_to_add = self.hashes[self.prev_colors[u_act]]
+        self.cumsum_hashes[v]+=hash_to_add
+        changed_nodes.add(v)
+        self.right_e_index+=1
+    changed_nodes = np.fromiter(changed_nodes, count = len(changed_nodes), dtype=np.int64)
+    #changed_nodes.sort()
+
+    for v in changed_nodes:
+        if  self.cumsum_hashes[v]==0:
+            self.current_colors[v] = 0 # this node does not see any edges
+            continue
+        the_hash = self.cumsum_hashes[v]
+
+        if self.mode=="global":
+            # uses globally valid colors, size of hash dict needs to grow
+            if the_hash in self.hash_dict:
+                self.current_colors[v] = self.hash_dict[the_hash]
+            else:
+                new_color = len(self.hash_dict)+1 # color zero reserved for degree zero nodes
+                self.current_colors[v] = new_color
+                self.hash_dict[the_hash]= new_color
+        elif self.mode == "local":
+            # in this mode we only keep only those hashes that are relevant in this slice
+            # the purpose of this is to keep the memory requirement to O(V+E)
+
+            # decrease count of previous color
+            #  if this color has no remaining uses, free this color for future uses
+            last_color = self.current_colors[v]
+            self.color_count_arr[last_color] -=1
+            if self.color_count_arr[last_color] == 0:
+                self.colorqueue.appendleft(last_color)
+                del self.hash_dict[self.current_hashes[v]]
+            self.current_hashes[v] = the_hash
 
 
+            if the_hash in self.hash_dict:
+                # use the color associated with this hash
+                self.current_colors[v] = self.hash_dict[the_hash]
+            else:
+                # use a new color and make it available to other nodes by storing
+                #  it in the hash_dict
+                new_color = self.colorqueue.popleft()
+                self.current_colors[v] = new_color
+                self.hash_dict[the_hash]= new_color
+            # make sure the number of nodes with this color is correct
+            self.color_count_arr[self.current_colors[v]] +=1
+        else:
+            assert False, "This should not be reached"
+    return changed_nodes
 
 
 
@@ -148,7 +318,7 @@ class TemporalColorsStruct:
     Runtime:
         When iterating increasing in time, this provides the current colors of all nodes in O(E+T)
     """
-    def __init__(self, colors_per_round, cumsum_hashes_per_round, hashes, num_active_per_node, E, E_active, times_for_active):
+    def __init__(self, h, colors_per_round, cumsum_hashes_per_round, hashes, num_active_per_node, E, E_active, times_for_active):
         self.colors_per_round=colors_per_round
         self.cumsum_hashes_per_round=cumsum_hashes_per_round
         self.hashes = hashes
@@ -161,7 +331,7 @@ class TemporalColorsStruct:
         self.colors_for_active = None
 
         self.d = None
-        self.h = None
+        self.h = h
         self.t = None
         self.base_active_node = cumsum_from_zero(self.num_active_per_node, full=True)
         self.num_nodes = len(num_active_per_node)
@@ -171,18 +341,22 @@ class TemporalColorsStruct:
 
         self.current_colors = np.zeros(self.num_nodes, dtype=np.int64)
         self.current_hashes = np.zeros(self.num_nodes, dtype=np.uint64)
+        self.changed_nodes = np.empty(self.num_nodes, dtype=np.int64)
+        self.changed_indicator = np.zeros(self.num_nodes, dtype=np.int64) # needs to be zeros to work properly
         self.left_e_index = None
         self.right_e_index = None
-        self.hash_dict = {}
+        self.hash_dict = Dict.empty(
+            key_type=types.uint64,
+            value_type=types.int64,
+        )
         self.mode="global"
         self.color_count_arr = np.zeros(self.num_nodes, dtype=np.int64)
         self.colorqueue = None
 
-    def reset_colors(self, d, h, mode=None):
+    def reset_colors(self, d, mode=None):
         """Resets colors and allows to restart the coloring process"""
         self.d = d
         # assert h > 0
-        self.h = h
         self.t = -1
         if d > 0:
             self.prev_colors = self.colors_per_round[d-1]
@@ -209,97 +383,31 @@ class TemporalColorsStruct:
         """
 
         assert self.t < t, "Can only move forward in time, if you want to go to an earlier time use .reset_colors again"
+        self.t=t
         if self.d == 0:
-            return set()
-        self.t = t
-        changed_nodes = set()
-
-        # process edges no longer visible
-        #  we find all nodes that loose an edge by increasing the time
-        #  for these we increase the left active node counter which
-        #  will subsequently affect that particular nodes hash
-        while self.left_e_index < len(self.E):
-            (u_act, _) = self.E_active[self.left_e_index,:]
-            (_, v, t_e) = self.E[self.left_e_index,:]
-
-            # print(t, "A   ", u_act, v, t_e)
-            if t_e >= t:
-                # print("skipped")
-                # we arrived at edges that can be potentially seen
-                break
-
-            #self.left_active_node[v]+=1
-            hash_to_add = self.hashes[self.prev_colors[u_act]]
-            self.cumsum_hashes[v]-=hash_to_add
-            changed_nodes.add(v)
-            self.left_e_index+=1
-
-        # process newly visible edges
-        #  by advancing the time, we add newly visible edges
-        while self.right_e_index < len(self.E):
-            (u_act, _) = self.E_active[self.right_e_index,:]
-            (_, v, t_e) = self.E[self.right_e_index,:]
-            # print(t, "B   ", u_act, v, t_e)
-            if t_e > t + self.h:
-                # print("skipped")
-                # we no longer see this edge or any future edges, break
-                break
-            #self.right_active_node[v]+=1
-            hash_to_add = self.hashes[self.prev_colors[u_act]]
-            self.cumsum_hashes[v]+=hash_to_add
-            changed_nodes.add(v)
-            self.right_e_index+=1
-        changed_nodes = np.fromiter(changed_nodes, count = len(changed_nodes), dtype=np.int64)
-        changed_nodes.sort()
-
-        for v in changed_nodes:
-            if  self.cumsum_hashes[v]==0:
-                self.current_colors[v] = 0 # this node does not see any edges
-                continue
-            the_hash = self.cumsum_hashes[v]
-
-            if self.mode=="global":
-                # uses globally valid colors, size of hash dict needs to grow
-                if the_hash in self.hash_dict:
-                    self.current_colors[v] = self.hash_dict[the_hash]
-                else:
-                    new_color = len(self.hash_dict)+1 # color zero reserved for degree zero nodes
-                    self.current_colors[v] = new_color
-                    self.hash_dict[the_hash]= new_color
-            elif self.mode == "local":
-                # in this mode we only keep only those hashes that are relevant in this slice
-                # the purpose of this is to keep the memory requirement to O(V+E)
-
-                # decrease count of previous color
-                #  if this color has no remaining uses, free this color for future uses
-                last_color = self.current_colors[v]
-                self.color_count_arr[last_color] -=1
-                if self.color_count_arr[last_color] == 0:
-                    self.colorqueue.appendleft(last_color)
-                    del self.hash_dict[self.current_hashes[v]]
-                self.current_hashes[v] = the_hash
-
-
-                if the_hash in self.hash_dict:
-                    # use the color associated with this hash
-                    self.current_colors[v] = self.hash_dict[the_hash]
-                else:
-                    # use a new color and make it available to other nodes by storing
-                    #  it in the hash_dict
-                    new_color = self.colorqueue.popleft()
-                    self.current_colors[v] = new_color
-                    self.hash_dict[the_hash]= new_color
-                # make sure the number of nodes with this color is correct
-                self.color_count_arr[self.current_colors[v]] +=1
-            else:
-                assert False, "This should not be reached"
+            return np.empty(0, dtype=np.int64)
+        if self.mode=="local":
+            return advance_time_non_compiled(self, t)
+        changed_nodes, self.left_e_index, self.right_e_index = _advance_time(t,
+                                                                             self.h,
+                                                                             self.left_e_index,
+                                                                             self.right_e_index,
+                                                                             self.E,
+                                                                             self.E_active,
+                                                                             self.prev_colors,
+                                                                             self.hashes,
+                                                                             self.cumsum_hashes,
+                                                                             self.changed_nodes,
+                                                                             self.changed_indicator,
+                                                                             self.current_colors,
+                                                                             self.hash_dict)
         return changed_nodes
 
-    def get_colors_all_times(self, d, h, mode=None):
+    def get_colors_all_times(self, d, mode=None):
         """Computes the colors for all times
         this runs in O(V*T + E)
         """
-        self.reset_colors(d, h, mode=mode)
+        self.reset_colors(d, mode=mode)
         times = np.unique(self.E[:,2]).ravel()
         colors = []
         for t in times:
