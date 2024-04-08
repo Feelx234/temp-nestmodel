@@ -1,11 +1,12 @@
 from pathlib import Path
 import numpy as np
-from tnestmodel.temp_utils import temp_undir_to_directed
 from numba import njit
+from tnestmodel.temp_utils import temp_undir_to_directed
+
 
 
 def get_dataset_folder():
-
+    """Returns the location of the dataset folder"""
     path = Path(__file__).parent.absolute()
 
     if str(path.name) == "scripts":
@@ -52,7 +53,8 @@ class CSVDataset:
         self.num_edges = None
 
     def read_pd(self):
-        import pandas as pd
+        """reads the dataset as pandas DataFrame"""
+        import pandas as pd # pylint: disable=import-outside-toplevel
         df = pd.read_csv(get_dataset_folder()/(self.name+".csv"), sep= self.seperator, header=None)
         self.num_edges = len(df)
         return df
