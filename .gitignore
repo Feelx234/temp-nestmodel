@@ -156,7 +156,8 @@ scripts/convergence2_jaccard.py
 scripts/convergence2_katz.py
 scripts/convergence2_pagerank.py
 scripts/datasets_path.txt
-
+other_notebooks
+notebooks/*.csv
 
 Untitled.ipynb
 Untitled1.ipynb
