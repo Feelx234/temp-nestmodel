@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 #from numpy.testing import assert_array_equal
 from tnestmodel.temp_fast_graph import TempFastGraph, SparseTempFastGraph
-from tnestmodel.temp_centralities import calc_temp_katz, calc_temp_katz_from_causal
+from tnestmodel.temp_centralities import calc_temp_katz, calc_temp_katz_from_causal, calc_temp_katz_iter
 
 
 edges0 = np.array([[2,1]], dtype=np.uint32)
@@ -25,6 +25,12 @@ class TestTCentralities(unittest.TestCase):
         G = SparseTempFastGraph(temp_edges1, is_directed=True)
         for kind, solution in zip(kinds, solutions1):
             np.testing.assert_almost_equal(solution, calc_temp_katz_from_causal(G, kind=kind))
+
+    def test_sparse_katz_iter(self):
+        G = SparseTempFastGraph(temp_edges1, is_directed=True)
+        for kind, solution in zip(kinds, solutions1):
+            with self.subTest(kind=kind):
+                np.testing.assert_almost_equal(solution, calc_temp_katz_iter(G, kind=kind))
 
     def test_katz(self):
         G = TempFastGraph(temp_edges1, is_directed=True)

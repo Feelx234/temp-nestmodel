@@ -129,7 +129,7 @@ class TempFastGraph():
         import scipy.sparse as sparse # pylint: disable=import-outside-toplevel
         from itertools import repeat # pylint: disable=import-outside-toplevel
         T = len(self.slices)
-        adjacencies = [G.to_coo() for G in self.slices]
+        adjacencies = [G.global_to_coo() for G in self.slices]
         empty_matrix = sparse.coo_matrix(([], ([], [])), shape=adjacencies[0].shape)
         columns = [sparse.vstack(tuple(np.repeat(A,i+1)) + tuple(repeat(empty_matrix, T-i-1))) for i, A in enumerate(adjacencies)]
         return sparse.hstack(columns)
@@ -218,7 +218,7 @@ class MappedGraph(FastGraph):
         return to_mapping(self.in_degree, self.mapping)
 
 
-    def to_coo(self):
+    def global_to_coo(self):
         """Returns a sparse coo-matrix representation of the graph"""
         from scipy.sparse import coo_matrix # pylint: disable=import-outside-toplevel
         edges = self.global_edges
