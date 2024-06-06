@@ -17,16 +17,19 @@ class TempFastGraph():
     """A class to model temporal graphs through time slices
     Each timeslices contains all potential nodes (even if they have degree zero)
     """
-    def __init__(self, edges, is_directed, r=None, num_nodes=None):
-        self.num_times=len(edges)
-        for edges_t in edges:
+    def __init__(self, slices, is_directed, times=None, r=None, num_nodes=None):
+        self.num_times=len(slices)
+        for edges_t in slices:
             assert edges_t.shape[0]>0
             assert edges_t.shape[1]==2
 
         if num_nodes is None:
-            num_nodes = max(map(np.max, edges)) + 1
-        self.slices=[FastGraph(v, is_directed=is_directed, num_nodes=num_nodes) for v in edges]
+            num_nodes = max(map(np.max, slices)) + 1
+        self.slices=[FastGraph(v, is_directed=is_directed, num_nodes=num_nodes) for v in slices]
         self.num_nodes = max(G.num_nodes for G in self.slices)
+        if times is None:
+            times = np.arange(self.num_times)
+        self.times = times
         self.is_directed = is_directed
         if r is None:
             r = len(self.slices)
@@ -393,6 +396,10 @@ class SparseTempFastGraph():
             n+=len(partial_edges)
         return E
 
+    def to_dense(self):
+        """Returns a dense temporal graph fro this sparse temporal graph"""
+        return TempFastGraph([_slice.global_edges for _slice in self.slices], self.is_directed, self.times, num_nodes=self.num_nodes)
+
 
     def reverse_slice_direction(self):
         """Returns a new graph with all edge directions reversed within time slices"""
@@ -431,7 +438,7 @@ class SparseTempFastGraph():
         for d_iter in range(max_d):
             s.reset_colors(d_iter, mode=mode)
             for t, G in zip(self.times, self.slices):
-                if G.base_partitions is None:
+                if d_iter == 0:
                     G.base_partitions = []
                 s.advance_time(t)
                 G.base_partitions.append(s.current_colors[G.global_nodes])

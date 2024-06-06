@@ -82,12 +82,21 @@ def draw_networkx_causal(G, labels=False, colors=None):
 
 def draw_networkx_temp(G_t, colors=None):
     """Create a plot of the temporal graph G_t"""
-    if isinstance(colors, int):
-        cols = G_t.calc_wl()
-        G_t.apply_wl_colors_to_slices(cols)
+
+
+    is_sparse_G = str(G_t).startswith("<tnestmodel.temp_fast_graph.SparseTempFastGraph")
+    if  isinstance(colors, int):
+        if is_sparse_G:
+            G_t.assign_colors_to_slices(d=colors)
+        else:
+            cols = G_t.calc_wl()
+            G_t.apply_wl_colors_to_slices(cols)
 
     for t, G in zip(G_t.times, G_t.slices):
-        G_nx = nx.relabel_nodes(G.to_nx(), {i:x for i, x in enumerate(G.unmapping)})
+        if is_sparse_G:
+            G_nx = nx.relabel_nodes(G.to_nx(), {i:x for i, x in enumerate(G.unmapping)})
+        else:
+            G_nx = G.to_nx()
         pos = {i : (t, i) for i in G_nx.nodes}
 
 

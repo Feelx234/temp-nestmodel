@@ -146,24 +146,10 @@ def determine_potentially_changed_nodes(t, h, left_e_index, right_e_index, E, E_
     #  we find all nodes that loose an edge by increasing the time
     #  for these we increase the left active node counter which
     #  will subsequently affect that particular nodes hash
-    while left_e_index < len(E):
-        (u_act, _) = E_active[left_e_index,:]
-        (_, v, t_e) = E[left_e_index,:]
 
-        # print(t, "A   ", u_act, v, t_e)
-        if t_e >= t:
-            # print("skipped")
-            # we arrived at edges that can be potentially seen
-            break
+    if h < 0 and t == E[0,2]:
+        h = E[len(E)-1, 2] - E[0,2] +1
 
-        #self.left_active_node[v]+=1
-        hash_to_add = hashes[prev_colors[u_act]]
-        cumsum_hashes[v]-=hash_to_add
-        if not changed_indicator[v]:
-            changed_nodes[num_changed]=v
-            changed_indicator[v]=True
-            num_changed+=1
-        left_e_index+=1
     # process newly visible edges
     #  by advancing the time, we add newly visible edges
     while right_e_index < len(E):
@@ -182,7 +168,24 @@ def determine_potentially_changed_nodes(t, h, left_e_index, right_e_index, E, E_
             changed_indicator[v]=True
             num_changed+=1
         right_e_index+=1
+    while left_e_index < len(E):
+        (u_act, _) = E_active[left_e_index,:]
+        (_, v, t_e) = E[left_e_index,:]
 
+        # print(t, "A   ", u_act, v, t_e)
+        if t_e >= t:
+            # print("skipped")
+            # we arrived at edges that can be potentially seen
+            break
+
+        #self.left_active_node[v]+=1
+        hash_to_add = hashes[prev_colors[u_act]]
+        cumsum_hashes[v]-=hash_to_add
+        if not changed_indicator[v]:
+            changed_nodes[num_changed]=v
+            changed_indicator[v]=True
+            num_changed+=1
+        left_e_index+=1
     # reset the changed indicator
     for i in range(num_changed):
         v = changed_nodes[i]
@@ -449,7 +452,7 @@ def one_round(hashes : np.ndarray, colors : np.ndarray, num_colors : int, E_acti
 
     cumsum_hashes = simple_hashes
     cumsum_hashes_out = cumsum_hashes.copy()
-    if h == -1:
+    if h < 0:
         agg_hashes = cumsum_hashes
     else:
         agg_hashes = adjust_hashes_for_finite_horizon(cumsum_hashes, num_active_per_node, times, h)

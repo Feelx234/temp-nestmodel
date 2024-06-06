@@ -1,5 +1,5 @@
 import numpy as np
-from nestmodel.ergm import Gnp_row_first
+from nestmodel.mutual_independent_models import Gnp_row_first
 from tnestmodel.temp_fast_graph import SparseTempFastGraph
 
 def temporal_Gnp(n, p, times, seed=0):
