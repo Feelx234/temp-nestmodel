@@ -80,7 +80,7 @@ def draw_networkx_causal(G, labels=False, colors=None):
         nx.draw_networkx_labels(G_nx, pos, font_size=22, font_color="whitesmoke")
 
 
-def draw_networkx_temp(G_t, colors=None):
+def draw_networkx_temp(G_t, colors=None, transpose=False, colormap=None, connectionstyle="arc3,rad=0.2", width=1.0):
     """Create a plot of the temporal graph G_t"""
 
 
@@ -97,22 +97,37 @@ def draw_networkx_temp(G_t, colors=None):
             G_nx = nx.relabel_nodes(G.to_nx(), {i:x for i, x in enumerate(G.unmapping)})
         else:
             G_nx = G.to_nx()
-        pos = {i : (t, i) for i in G_nx.nodes}
+        if transpose:
+            pos = {i : (i, - t) for i in G_nx.nodes}
+        else:
+            pos = {i : (t, i) for i in G_nx.nodes}
 
 
-        if colors is None:
+        def get_actual_colors(node_wl):
+            if colormap is None:
+                node_color = [to_color(wl) for wl in node_wl]
+            else:
+                node_color = [colormap[wl] for wl in node_wl]
+            return node_color
+
+        if colors is None and colormap is None:
             nx.draw_networkx_nodes(G_nx, pos)
+        elif colors is None:
+             node_color = get_actual_colors([0 for _ in range(G.num_nodes)])
+             nx.draw_networkx_nodes(G_nx, pos, node_color=node_color)
         elif isinstance(colors, int):
             node_wl = G.base_partitions[colors]
-            node_color = [to_color(wl) for wl in node_wl]
+            node_color = get_actual_colors(node_wl)
             nx.draw_networkx_nodes(G_nx, pos, node_color=node_color)
         elif isinstance(colors, (np.ndarray, list, tuple)):
-            node_color = [to_color(wl) for wl in colors[t]]
+            node_color = get_actual_colors(colors[t])
             nx.draw_networkx_nodes(G_nx, pos, node_color=node_color)
         else:
             raise NotImplementedError()
         nx.draw_networkx_edges( # From https://stackoverflow.com/questions/52588453/creating-curved-edges-with-networkx-in-python3
             G_nx, pos,
             arrows=True,
-            connectionstyle="arc3,rad=0.2"  # <-- THIS IS IT
+            connectionstyle=connectionstyle,  # <-- THIS IS IT
+            width=width
+
         )

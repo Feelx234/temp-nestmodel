@@ -1,5 +1,6 @@
 
 from typing import Tuple
+from itertools import product
 import warnings
 import numpy as np
 from nestmodel.fast_graph import FastGraph
@@ -34,6 +35,24 @@ class TempFastGraph():
         if r is None:
             r = len(self.slices)
         self.r = r
+
+
+    def to_temporal_edges(self, base_edges=False):
+        """Returns the graph represented as temporal edges
+        a temporal edge is a triple (u->v, t)
+        """
+        total_number_of_edges = sum(len(G.edges) for G in self.slices)
+        E = np.empty((total_number_of_edges, 3), dtype=np.int64)
+        n = 0
+        for t, G in zip(self.times, self.slices):
+            if base_edges:
+                partial_edges = G.base_edges
+            else:
+                partial_edges = G.edges
+            E[n:n+len(partial_edges), 0:2] = partial_edges
+            E[n:n+len(partial_edges), 2] = t
+            n+=len(partial_edges)
+        return E
 
     def get_causal_completion(self) -> FastGraph:
         """ Returns the directed graph that corresponds to this temporal graph
@@ -76,6 +95,16 @@ class TempFastGraph():
             G.base_partitions = np.array(colors, dtype=np.uint32)
             G.wl_iterations = len(G.base_partitions)
             G.reset_edges_ordered()
+
+    def get_all_partitions(self):
+        """Returns all partitions of the entire graph stacked"""
+        if self.slices[0].base_partitions is None:
+            cols = self.calc_wl()
+            self.apply_wl_colors_to_slices(cols)
+        partitions = np.hstack([G.base_partitions for G in self.slices])
+        indentifiers = [(v, t) for v,t in product(range(self.num_nodes), range(len(self.times)))]
+        return indentifiers, partitions
+
 
 
 
