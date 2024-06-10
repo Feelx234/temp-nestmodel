@@ -85,8 +85,10 @@ class TempFastGraph():
         wl_colors = [colors.reshape((len(self.slices), self.num_nodes)) for colors in out]
         return wl_colors # each row is one timeslice
 
-    def apply_wl_colors_to_slices(self, wl_colors):
+    def apply_wl_colors_to_slices(self, wl_colors=None):
         """Assign wl colors to each slice"""
+        if wl_colors is None:
+            wl_colors = self.calc_wl()
         wl_colors_by_slice = [[] for _ in range(len(self.slices))]
         for colors_per_depth in wl_colors:
             for i, slice_colors in enumerate(wl_colors_by_slice):
@@ -95,6 +97,19 @@ class TempFastGraph():
             G.base_partitions = np.array(colors, dtype=np.uint32)
             G.wl_iterations = len(G.base_partitions)
             G.reset_edges_ordered()
+
+    def copy(self):
+        """Creates a copy of this temporal graph"""
+        new_slices = [s.edges.copy() for s in self.slices]
+        return TempFastGraph(new_slices, self.is_directed, self.times.copy(), num_nodes=self.num_nodes)
+
+
+    def rewire(self, depth, method, **kwargs):
+        """Rewires each slice of the temporal graph"""
+        if self.is_directed:
+            raise NotImplementedError("Not yet implemented for directed graphs")
+        for s in self.slices:
+            s.rewire(depth, method=method, **kwargs)
 
     def get_all_partitions(self):
         """Returns all partitions of the entire graph stacked"""

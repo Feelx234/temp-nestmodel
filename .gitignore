@@ -158,6 +158,7 @@ scripts/convergence2_pagerank.py
 scripts/datasets_path.txt
 other_notebooks
 notebooks/*.csv
+notebooks/Figure1
 
 Untitled.ipynb
 Untitled1.ipynb

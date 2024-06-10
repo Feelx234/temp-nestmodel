@@ -79,6 +79,53 @@ def draw_networkx_causal(G, labels=False, colors=None):
     if labels is True:
         nx.draw_networkx_labels(G_nx, pos, font_size=22, font_color="whitesmoke")
 
+def to_2d_array(inp):
+    inp = np.array(inp, dtype=int)
+    if len(inp.shape)<2:
+        return inp.reshape(1,len(inp))
+    else:
+        return inp
+
+def draw_networkx_edges(from_node, to_node, is_directed=True, transpose=False, connectionstyle="arc3,rad=0.2", width=1.0, edge_color="k", delta=(0,0)):
+    from_node = to_2d_array(from_node)
+    to_node = to_2d_array(to_node)
+    assert from_node.shape[0]==to_node.shape[0]
+    def to_pos(i, t, ud=1):
+        if transpose:
+            return (i+ud*delta[0], ud*delta[1]- t) 
+        else:
+            return (t+ud*delta[0], ud*delta[1]+i)
+    source_nodes = set(map(tuple, from_node))
+    target_nodes = set(map(tuple, to_node))
+    nodes = list( source_nodes | target_nodes )
+    nodes_map = {node : i  for i, node in enumerate(nodes)}
+    pos = {}
+    for node_id, (i, t) in enumerate(nodes):
+        if (i,t) in source_nodes:
+            pos[node_id] = to_pos(i, t, 1)
+        else:
+            pos[node_id] = to_pos(i, t, 0)
+
+    edges = []
+    for (u, v) in zip(from_node, to_node):
+        edges.append((nodes_map[tuple(u)], nodes_map[tuple(v)]))
+    if is_directed:
+        G_nx = nx.DiGraph()
+    else:
+        G_nx = nx.Graph
+
+    G_nx.add_nodes_from(nodes)
+    G_nx.add_edges_from(edges)
+    nx.draw_networkx_edges( # From https://stackoverflow.com/questions/52588453/creating-curved-edges-with-networkx-in-python3
+        G_nx,
+        pos,
+        arrows=True,
+        connectionstyle=connectionstyle,  # <-- THIS IS IT
+        width=width,
+        edge_color=edge_color)
+
+        
+        
 
 def draw_networkx_temp(G_t, colors=None, transpose=False, colormap=None, connectionstyle="arc3,rad=0.2", width=1.0):
     """Create a plot of the temporal graph G_t"""
