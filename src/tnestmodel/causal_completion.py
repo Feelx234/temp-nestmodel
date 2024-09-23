@@ -43,7 +43,7 @@ def get_edges_dense_causal_completion(E_temp, times, num_nodes, h):
     Assumes that E_temp is increasing in time
     """
     total_num_edges = calculate_number_of_dense_edges(E_temp)
-    E_out = np.empty((total_num_edges, 2), dtype=np.uint32)
+    E_out = np.empty((total_num_edges, 2), dtype=np.int32)
     n=0
     last_t = times[0]
     t_index = 0
@@ -157,7 +157,7 @@ def _create_sparse_causal_graph(per_node, pactive_nodes, h, num_nodes):
             left_per_node[v]+=1
         while right_per_node[v]< len(potential_neighbors) and potential_neighbors[right_per_node[v]][1]<=t+h:
             right_per_node[v]+=1
-        to_append = np.empty((right_per_node[v]-left_per_node[v],2), dtype=np.uint32)
+        to_append = np.empty((right_per_node[v]-left_per_node[v],2), dtype=np.int32)
         to_append[:,0]=v_out
         to_append[:,1]=neighbors_int[v][left_per_node[v]:right_per_node[v]]
         E_out.append(to_append)
@@ -240,7 +240,7 @@ def get_sparse_causal(G_temp, h, add_nodes=0):
     """Obtain a sparse causal graph from the temporal graph G_temp at horizon h"""
     E = G_temp.to_temporal_edges()
     E_out, num_all_nodes, int_to_tuple = create_sparse_causal_graph(E, h, False, G_temp.num_nodes)
-    G = FastGraph(np.array(E_out, dtype=np.uint32), is_directed=True, num_nodes=num_all_nodes+add_nodes).switch_directions()
+    G = FastGraph(np.array(E_out, dtype=np.int32), is_directed=True, num_nodes=num_all_nodes+add_nodes).switch_directions()
     G.identifiers = identifiers_from_int_to_tuple(int_to_tuple)
     G.num_nodes_per_time=G_temp.num_nodes
     return G

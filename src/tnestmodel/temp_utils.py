@@ -43,7 +43,7 @@ def _partition_temporal_edges(E):
             last_t = t
             times.append(last_t)
         curr_list.append((u,v))
-    list_of_arrs = [np.array(x, dtype=np.uint32) for x in list_edges]
+    list_of_arrs = [np.array(x, dtype=np.int32) for x in list_edges]
     return list_of_arrs, times
 
 

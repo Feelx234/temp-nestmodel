@@ -14,9 +14,9 @@ def to_edge_sets(e1, e2):
 class TestTFastGraph(unittest.TestCase):
     def temp_fast_graph_test(self, l_edges, num_nodes, result_edges, is_directed):
 
-        l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
+        l_edges = [np.array(edges, dtype=np.int32) for edges in l_edges]
         G_t = TempFastGraph(l_edges, is_directed=is_directed)
-        result_edges = np.array(result_edges, dtype=np.uint32)
+        result_edges = np.array(result_edges, dtype=np.int32)
 
         G = G_t.get_causal_completion()
         self.assertEqual(G.num_nodes, num_nodes)
@@ -26,9 +26,9 @@ class TestTFastGraph(unittest.TestCase):
         if isinstance(l_edges, np.ndarray) and l_edges.shape[1]==3:
             G_t = SparseTempFastGraph.from_temporal_edges(l_edges, is_directed=is_directed)
         else:
-            l_edges = [np.array(edges, dtype=np.uint32) for edges in l_edges]
+            l_edges = [np.array(edges, dtype=np.int32) for edges in l_edges]
             G_t = SparseTempFastGraph(l_edges, is_directed=is_directed)
-        result_edges = np.array(result_edges, dtype=np.uint32)
+        result_edges = np.array(result_edges, dtype=np.int32)
         with self.subTest(causal_completion="sparse"):
             G = G_t.get_sparse_causal_completion()
             self.assertEqual(G.num_nodes, num_nodes)
@@ -46,31 +46,31 @@ class TestTFastGraph(unittest.TestCase):
                     self.assertSetEqual(*to_edge_sets(d_edges, G_d.edges))
 
     def test_edges(self):
-        edges = np.array([[0,1]], dtype=np.uint32)
+        edges = np.array([[0,1]], dtype=np.int32)
         G = TempFastGraph([edges.copy(), edges.copy()], is_directed=True)
         assert_array_equal(edges, G.slices[0].edges)
         assert_array_equal(edges, G.slices[1].edges)
 
     def test_num_nodes(self):
-        edges1 = np.array([[0,1]], dtype=np.uint32)
-        edges2 = np.array([[2,3]], dtype=np.uint32)
+        edges1 = np.array([[0,1]], dtype=np.int32)
+        edges2 = np.array([[2,3]], dtype=np.int32)
         G = TempFastGraph([edges1.copy(), edges2.copy()], is_directed=True)
         assert_array_equal(edges1, G.slices[0].edges)
         assert_array_equal(edges2, G.slices[1].edges)
         self.assertEqual(G.num_nodes, 4)
 
     def test_num_nodes2(self):
-        edges0 = np.array([[0,1]], dtype=np.uint32)
-        edges1 = np.array([[1,2]], dtype=np.uint32)
+        edges0 = np.array([[0,1]], dtype=np.int32)
+        edges1 = np.array([[1,2]], dtype=np.int32)
         G = TempFastGraph([edges0.copy(), edges1.copy()], is_directed=True)
         assert_array_equal(edges0, G.slices[0].edges)
         assert_array_equal(edges1, G.slices[1].edges)
         self.assertEqual(G.num_nodes, 3)
 
     def test_no_empty_time(self):
-        edges0 = np.array([[0,1]], dtype=np.uint32)
-        edges1 = np.empty((0,2), dtype=np.uint32)
-        edges2 = np.array([[1,2]], dtype=np.uint32)
+        edges0 = np.array([[0,1]], dtype=np.int32)
+        edges1 = np.empty((0,2), dtype=np.int32)
+        edges2 = np.array([[1,2]], dtype=np.int32)
         with self.assertRaises(AssertionError):
             TempFastGraph([edges0.copy(), edges1.copy(), edges2.copy()], is_directed=True)
 
@@ -330,18 +330,18 @@ class TestTFastGraph(unittest.TestCase):
                                   )
 
     def test_causal_adjacency_the_same(self):
-        edges0 = np.array([[2,1]], dtype=np.uint32)
-        edges1 = np.array([[1,2]], dtype=np.uint32)
-        edges2 = np.array([[2,3]], dtype=np.uint32)
-        edges3 = np.array([[0,1],[1,2], [2,0]], dtype=np.uint32)
+        edges0 = np.array([[2,1]], dtype=np.int32)
+        edges1 = np.array([[1,2]], dtype=np.int32)
+        edges2 = np.array([[2,3]], dtype=np.int32)
+        edges3 = np.array([[0,1],[1,2], [2,0]], dtype=np.int32)
         G = TempFastGraph([edges0, edges1, edges2, edges3], is_directed=True)
         self.assertEqual((G.sparse_causal_adjacency()!=G.get_causal_completion().to_coo()).nnz, 0)
 
 
     def test_sparse_causal_adjacency_multi_edges(self):
-        edges0 = np.array([[0,1], [1,2]], dtype=np.uint32)
-        edges1 = np.array([[1,2]], dtype=np.uint32)
-        edges2 = np.array([[0,1], [1,2]], dtype=np.uint32)
+        edges0 = np.array([[0,1], [1,2]], dtype=np.int32)
+        edges1 = np.array([[1,2]], dtype=np.int32)
+        edges2 = np.array([[0,1], [1,2]], dtype=np.int32)
         G = SparseTempFastGraph([edges0, edges1, edges2], is_directed=True)
         coo = G.get_sparse_causal_completion().to_coo()
         assert_array_equal(coo.col, [1, 4, 5, 5, 5, 5, 5, 4, 5])

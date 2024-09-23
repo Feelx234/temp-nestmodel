@@ -6,10 +6,10 @@ from tnestmodel.temp_fast_graph import TempFastGraph, SparseTempFastGraph
 from tnestmodel.temp_centralities import calc_temp_katz, calc_temp_katz_from_causal, calc_temp_katz_iter
 
 
-edges0 = np.array([[2,1]], dtype=np.uint32)
-edges1 = np.array([[1,2]], dtype=np.uint32)
-edges2 = np.array([[2,3]], dtype=np.uint32)
-edges3 = np.array([[0,1],[1,2], [2,0]], dtype=np.uint32)
+edges0 = np.array([[2,1]], dtype=np.int32)
+edges1 = np.array([[1,2]], dtype=np.int32)
+edges2 = np.array([[2,3]], dtype=np.int32)
+edges3 = np.array([[0,1],[1,2], [2,0]], dtype=np.int32)
 temp_edges1 = [edges0.copy(), edges1.copy(), edges2, edges3, edges0]
 solutions1 = [[1.11211211, 1.25224224, 1.43643544, 1.        ], [1.12312312, 1.33543544, 1.23123123, 1.111     ]]
 

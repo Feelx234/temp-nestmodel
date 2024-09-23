@@ -94,7 +94,7 @@ class TempFastGraph():
             for i, slice_colors in enumerate(wl_colors_by_slice):
                 slice_colors.append(colors_per_depth[i,:].ravel())
         for G, colors in zip(self.slices, wl_colors_by_slice):
-            G.base_partitions = np.array(colors, dtype=np.uint32)
+            G.base_partitions = np.array(colors, dtype=np.int32)
             G.wl_iterations = len(G.base_partitions)
             G.reset_edges_ordered()
 
@@ -135,8 +135,8 @@ class TempFastGraph():
         _, max_out_degree = get_rolling_max_degree((in_degrees, out_degrees), mapping, self.is_directed, self.r, self.num_nodes)
         list_successors = [-np.ones(out_deg, dtype=np.int32) for out_deg in max_out_degree]
         time_successors = [np.empty(out_deg, dtype=np.int32) for out_deg in max_out_degree]
-        first_index = np.zeros(self.num_nodes, dtype=np.uint32)
-        last_index = np.zeros(self.num_nodes, dtype=np.uint32)
+        first_index = np.zeros(self.num_nodes, dtype=np.int32)
+        last_index = np.zeros(self.num_nodes, dtype=np.int32)
         for t in range(T-1, -1, -1):
             g = self.slices[t]
 
@@ -148,7 +148,7 @@ class TempFastGraph():
                 u_successors[last_index[u] % buff_size] = v + t*self.num_nodes
                 time_successors[u][last_index[u] % buff_size] = t
                 last_index[u] +=1
-            new_edges = np.empty((num_total_edges, 2), dtype=np.uint32)
+            new_edges = np.empty((num_total_edges, 2), dtype=np.int32)
             n = 0
             for v in range(self.num_nodes):
 
@@ -293,12 +293,12 @@ def _get_rolling_max_degree(list_degrees, list_mapping, r, num_nodes):
     # thus need to increase r by 1 to get buf size
     buff_size = r+1
     T = len(list_degrees)
-    max_degree = np.zeros(num_nodes, dtype=np.uint32)
-    curr_degree = np.zeros(num_nodes, dtype=np.uint32)
-    roll_degree = np.zeros((num_nodes, buff_size), dtype=np.uint32)
-    roll_time = np.zeros((num_nodes, buff_size), dtype=np.uint32)
-    first_index = np.zeros(num_nodes, dtype=np.uint32)
-    last_index = np.zeros(num_nodes, dtype=np.uint32)
+    max_degree = np.zeros(num_nodes, dtype=np.int32)
+    curr_degree = np.zeros(num_nodes, dtype=np.int32)
+    roll_degree = np.zeros((num_nodes, buff_size), dtype=np.int32)
+    roll_time = np.zeros((num_nodes, buff_size), dtype=np.int32)
+    first_index = np.zeros(num_nodes, dtype=np.int32)
+    last_index = np.zeros(num_nodes, dtype=np.int32)
     for t in range(T):
         mapping = list_mapping[t]
         degrees = list_degrees[t]
@@ -338,15 +338,15 @@ def get_rolling_max_degree(l_degrees, l_mapping, is_directed, h, num_nodes):
 def get_total_degree(l_edges, is_directed, num_nodes):
     """Computes the total degree of a node (i.e. summed over time)"""
     if is_directed:
-        in_degree = np.zeros(num_nodes, dtype=np.uint32)
-        out_degree = np.zeros(num_nodes, dtype=np.uint32)
+        in_degree = np.zeros(num_nodes, dtype=np.int32)
+        out_degree = np.zeros(num_nodes, dtype=np.int32)
         for edges in l_edges:
             for i in range(len(edges)):
                 out_degree[edges[i,0]]+=1
                 in_degree[edges[i,1]]+=1
         return in_degree, out_degree
     else:
-        degree = np.zeros(num_nodes, dtype=np.uint32)
+        degree = np.zeros(num_nodes, dtype=np.int32)
         for edges in l_edges:
             for i in range(len(edges)):
                 degree[edges[i,0]]+=1
@@ -492,7 +492,7 @@ class SparseTempFastGraph():
             else:
                 sorting_strategy = "both"
         for G in self.slices:
-            G.base_partitions = np.array(G.base_partitions, dtype=np.uint32)
+            G.base_partitions = np.array(G.base_partitions, dtype=np.int32)
             G.reset_edges_ordered(sorting_strategy)
         self.h = h
         self.s=s
@@ -612,7 +612,7 @@ class SparseTempFastGraph():
                 num_successors[i_glob]+=1
             total_edges = sum(num_successors[g.unmapping[i]] for i in range(g.num_nodes) if is_active[t][i])
 
-            edges = np.empty((total_edges,2), dtype=np.uint32)
+            edges = np.empty((total_edges,2), dtype=np.int32)
             #print(edges)
             #print(is_active)
             n=0
