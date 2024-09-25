@@ -91,6 +91,12 @@ class CSVDataset:
         E[:,0] = df[0][order]
         E[:,1] = df[1][order]
         E[:,2] = time
+
+        if not self.is_directed:
+            tmp_min = np.minimum(E[:,0], E[:,1])
+            tmp_max = np.maximum(E[:,0], E[:,1])
+            E[:,0]=tmp_min
+            E[:,1]=tmp_max
         unique_edges = set(map(tuple, E))
         E = np.array(list(unique_edges), dtype=np.int64)
         order = np.argsort(E[:,2].ravel())

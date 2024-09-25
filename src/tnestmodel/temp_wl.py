@@ -356,6 +356,9 @@ class TemporalColorsStruct:
         self.color_count_arr = np.zeros(self.num_nodes, dtype=np.int64)
         self.colorqueue = None
 
+        # other properties
+        self.seed = None
+
     def reset_colors(self, d, mode=None):
         """Resets colors and allows to restart the coloring process"""
         self.d = d

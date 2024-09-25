@@ -3,6 +3,7 @@ from typing import Tuple
 from itertools import product
 import warnings
 import numpy as np
+from copy import copy
 from nestmodel.fast_graph import FastGraph
 from nestmodel.utils import make_directed, switch_in_out
 from tnestmodel.temp_utils import partition_temporal_edges
@@ -230,6 +231,21 @@ class MappedGraph(FastGraph):
 
         super().__init__(mapped_edges, is_directed, num_nodes=internal_num_nodes)
 
+    def copy(self):
+        """Returns a copy of this graph which has no data shared with the original graph"""
+        G = MappedGraph(
+            self.raw_edges,
+            self.is_directed,
+            super().edges,
+            self.mapping,
+            self.unmapping,
+            self.global_num_nodes,
+            self.num_nodes
+        )
+        for key, value in self.__dict__.items():
+            setattr(G, key, copy(value))
+        return G
+
     @classmethod
     def from_edges(cls, edges, is_directed, global_num_nodes=None):
         """Create a temporal graph from themporal edges"""
@@ -397,14 +413,22 @@ class SparseTempFastGraph():
     Each timeslices contains only those nodes that have non-zero degree
     """
     def __init__(self, edges, is_directed, num_nodes=None, times=None):
-        for edges_t in edges:
-            assert edges_t.shape[0]>0
-            assert edges_t.shape[1]==2
         self.num_times=len(edges)
-        if num_nodes is None:
-            num_nodes = max(map(np.max, edges)) + 1
+
+
+
+        if not isinstance(edges[0], MappedGraph):
+            for edges_t in edges:
+                assert edges_t.shape[0]>0
+                assert edges_t.shape[1]==2
+            if num_nodes is None:
+                num_nodes = max(map(np.max, edges)) + 1
+            self.slices=[MappedGraph.from_edges(edges_t, is_directed=is_directed, global_num_nodes=num_nodes) for edges_t in edges]
+        else:
+            if num_nodes is None:
+                num_nodes = edges[0].global_num_nodes
+            self.slices = edges
         self.num_nodes = num_nodes
-        self.slices=[MappedGraph.from_edges(edges_t, is_directed=is_directed, global_num_nodes=num_nodes) for edges_t in edges]
         self.is_directed = is_directed
         if times is None:
             self.times=np.arange(len(self.slices))
@@ -412,7 +436,17 @@ class SparseTempFastGraph():
             self.times=np.asanyarray(times).ravel()
         assert self.num_times == len(self.times)
         self.h = None
+        self.s = None
 
+    def copy(self):
+        """Returns a copy of this graph which has no data shared with the original graph"""
+        edges = [G_t.copy() for G_t in self.slices]
+        G = SparseTempFastGraph(edges, self.is_directed, num_nodes = self.num_nodes, times = self.times.copy())
+        for key, value in self.__dict__.items():
+            if key=="slices":
+                continue
+            setattr(G, key, copy(value))
+        return G
 
     @staticmethod
     def from_temporal_edges(E, is_directed, num_nodes=None):
@@ -468,14 +502,20 @@ class SparseTempFastGraph():
             #rev_edges = np.vstack((edges[:,1], edges[:,0], edges[:,2])).T
 
         if kind=="broadcast":
-            return TemporalColorsStruct(*_compute_d_rounds(edges, self.num_nodes, d=d, h=h, seed=seed))
+            s = TemporalColorsStruct(*_compute_d_rounds(edges, self.num_nodes, d=d, h=h, seed=seed))
+            s.seed = seed
+            return s
         elif kind=="receive":
             raise NotImplementedError()
 
 
     def assign_colors_to_slices(self, h=-1, d=-1, seed=0, sorting_strategy="auto", kind="broadcast", mode="global"):
         """Assign the temporal wl colors to individual slices"""
-        s = self.get_temporal_wl_struct(h, d, seed, kind)
+        if self.s is not None and self.s.h == h and d < len(self.s.colors_per_round) and self.s.seed == seed:
+            return self.s
+        else:
+
+            s = self.get_temporal_wl_struct(h, d, seed, kind)
 
         max_d = len(s.colors_per_round)
         print("max_d", max_d)
