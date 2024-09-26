@@ -247,12 +247,12 @@ def get_aggregated_graph(G):
     return m
 
 
-def _get_aggregated_graph(G):
+def _get_aggregated_graph(G, ignore_directionality=False):
     E = G.to_temporal_edges()
-    return __get_aggregated_graph(E, G.is_directed)
+    return _get_aggregated_graph_from_edges(E, ignore_directionality or G.is_directed)
 
 @njit(cache=True)
-def __get_aggregated_graph(E, is_directed):
+def _get_aggregated_graph_from_edges(E, is_directed):
     m = Dict()
     if is_directed:
         for i in range(E.shape[0]):
