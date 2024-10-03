@@ -145,10 +145,10 @@ class NumberOfTrianglesCalculator():
         self.future_nodes_count.clear()
         self.past_nodes.clear()
         self.past_nodes_count.clear()
-        for u,v,t in self.edges:
+        for u,v,_ in self.edges:
             _add_nodes_to_maps(u,v, self.future_nodes, self.future_nodes_count, self.G_temp.is_directed)
 
-    def calc_for_slice(self, G, t):
+    def calc_for_slice(self, G, _):
         count = 0
         E = G.global_edges.copy()
         for u,v in E:
@@ -277,13 +277,40 @@ def _get_aggregated_graph_from_edges(E, is_directed):
     return m
 
 @njit(cache=True)
-def _count_triangles_in_aggregated(m, num_nodes):
+def _count_triangles_in_aggregated(m, succ):
     c = 0
     for (u,v), mul in m.items():
-        for w in range(num_nodes):
-            if (w,u) in m and (v,w) in m:
+        for w in succ[v]:
+            if (w,u) in m:
                 c+=mul*m[(w,u)]*m[(v,w)]
     return c
+
+
+@njit(cache=True)
+def _count_3paths_in_aggregated(m, num_nodes):
+    succ = np.zeros(num_nodes, dtype=np.int64)
+    pred = np.zeros(num_nodes, dtype=np.int64)
+    for (u,v), mul in m.items():
+        succ[v]+=mul
+        pred[u]+=mul
+
+    c = 0
+    for (u,v), mul in m.items():
+        c+= mul * pred[u] * succ[v]
+    return c
+
+
+@njit(cache=True)
+def _get_successors_from_aggregated(m):
+    succ = Dict()
+    for (u,v) in m.keys():
+        if u in succ:
+            succ[u][v] = 1
+        else:
+            tmp = Dict()
+            tmp[v]=1
+            succ[u]=tmp
+    return succ
 
 def count_triangles_in_aggregated(m, G):
     c = 0
@@ -301,9 +328,15 @@ def get_all_triangles(G):
 
 def numba_get_all_triangles(G):
     m = _get_aggregated_graph(G)
-    c = _count_triangles_in_aggregated(m, G.num_nodes)
+    c = _count_3paths_in_aggregated(m, G.num_nodes)
     return c
 
+
+def numba_get_3paths_triangles(G):
+    m = _get_aggregated_graph(G)
+    succ = _get_successors_from_aggregated(m)
+    c = _count_triangles_in_aggregated(m, succ)
+    return c
 
 def _number_of_edges(G):
     return len(G.edges)

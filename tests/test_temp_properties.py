@@ -33,5 +33,17 @@ class TestNumberOfTrianglesCalculator(unittest.TestCase):
         assert_array_equal(arr, [0])
 
 
+
+    def test_simple3(self):
+        G = SparseTempFastGraph.from_temporal_edges(np.array([(0,1,0), (0,1,1), (1,2,2), (1,3,2), (2,0,3), (3,0,4), (2,0,5)],dtype=int), is_directed=True)
+        calculator = NumberOfTrianglesCalculator(G, strict=True)
+        calculator.prepare()
+        _, arr = G.compute_for_each_slice(calculator.calc_for_slice, min_size=1, call_with_time=True, dtype=int)
+        assert_array_equal(arr, [0, 0, 6, 0, 0, 0])
+
+        calculator = NumberOfTrianglesCalculator(G, strict=False)
+        calculator.prepare()
+        _, arr = G.compute_for_each_slice(calculator.calc_for_slice, min_size=1, call_with_time=True, dtype=int)
+        assert_array_equal(arr, [0, 0, 6, 0, 0, 0])
 if __name__ == '__main__':
     unittest.main(failfast=True)
